@@ -11,6 +11,8 @@ def img_data_to_pil(img_data):
     f = io.BytesIO()
     f.write(img_data)
     img_pil = PIL.Image.open(f)
+    if img_pil.mode == 'RGBA':
+        img_pil = img_pil.convert('RGB')
     return img_pil
 
 

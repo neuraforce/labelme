@@ -32,6 +32,7 @@ def get_default_config():
 
     # save default config to ~/.labelmerc
     user_config_file = osp.join(osp.expanduser("~"), ".labelmerc")
+    print('Using user config file:', user_config_file)
     if not osp.exists(user_config_file):
         try:
             shutil.copy(config_file, user_config_file)

@@ -211,6 +211,20 @@ black --line-length 79 --check labelme/
 MPLBACKEND='agg' pytest -vsx tests/
 ```
 
+## Improvements by neuraforce
+
+- Track modified files and color them blue
+- Add more keyboard shortcuts to default config
+- Deleting a label file also deletes the image
+- Add functionality to reload folder and check for new files
+- Add functionality to automatically select next unlabelled item
+- Menu bar: Create rectangles by default (not polygons)
+
+## Bugfixes by neuraforce
+
+- Avoid crashes when loading RGBA images (converting them to RGB)
+- QPointF bugfixes
+
 
 ## Acknowledgement
 

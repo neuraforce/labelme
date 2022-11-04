@@ -72,6 +72,7 @@ shortcuts:
   close: Ctrl+W
   open: Ctrl+O
   open_dir: Ctrl+U
+  reload: Ctrl+Alt+R
   quit: Ctrl+Q
   save: Ctrl+S
   save_as: Ctrl+Shift+S
@@ -79,6 +80,7 @@ shortcuts:
   delete_file: Ctrl+Delete
 
   open_next: [D, Ctrl+Shift+D]
+  open_next_blank: [B, Ctrl+Shift+B]
   open_prev: [A, Ctrl+Shift+A]
 
   zoom_in: [Ctrl++, Ctrl+=]
@@ -87,13 +89,13 @@ shortcuts:
   fit_window: Ctrl+F
   fit_width: Ctrl+Shift+F
 
-  create_polygon: Ctrl+N
-  create_rectangle: Ctrl+R
-  create_circle: null
-  create_line: null
-  create_point: null
-  create_linestrip: null
-  edit_polygon: Ctrl+J
+  create_polygon: [N, Ctrl+N]
+  create_rectangle: [R, Ctrl+R]
+  create_circle: [K, Ctrl+K]
+  create_line: [L, Ctrl+L]
+  create_point: [P, Ctrl+P]
+  create_linestrip: [T, Ctrl+T]
+  edit_polygon: [J, Ctrl+J]
   delete_polygon: Delete
   duplicate_polygon: Ctrl+D
   copy_polygon: Ctrl+C
@@ -101,6 +103,6 @@ shortcuts:
   undo: Ctrl+Z
   undo_last_point: Ctrl+Z
   add_point_to_edge: Ctrl+Shift+P
-  edit_label: Ctrl+E
+  edit_label: [E, Ctrl+E]
   toggle_keep_prev_mode: Ctrl+P
   remove_selected_point: [Meta+H, Backspace]

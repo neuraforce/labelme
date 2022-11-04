@@ -48,6 +48,8 @@ class LabelFile(object):
     def load_image_file(filename):
         try:
             image_pil = PIL.Image.open(filename)
+            if image_pil.mode == 'RGBA':
+                image_pil = image_pil.convert('RGB')
         except IOError:
             logger.error("Failed opening image file: {}".format(filename))
             return

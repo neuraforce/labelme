@@ -120,6 +120,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.flag_dock.setWidget(self.flag_widget)
         self.flag_widget.itemChanged.connect(self.setDirty)
 
+        self.modifiedLabelFiles = set()
         self.labelList.itemSelectionChanged.connect(self.labelSelectionChanged)
         self.labelList.itemDoubleClicked.connect(self.editLabel)
         self.labelList.itemChanged.connect(self.labelItemChanged)
@@ -237,7 +238,15 @@ class MainWindow(QtWidgets.QMainWindow):
             self.openNextImg,
             shortcuts["open_next"],
             "next",
-            self.tr("Open next (hold Ctl+Shift to copy labels)"),
+            self.tr("Open next (hold Ctrl+Shift to copy labels)"),
+            enabled=False,
+        )
+        openNextBlankImg = action(
+            self.tr("&Next Unannotated Image"),
+            self.openNextBlankImg,
+            shortcuts["open_next_blank"],
+            "next",
+            self.tr("Open next unannotated (hold Ctrl+Shift to copy labels)"),
             enabled=False,
         )
         openPrevImg = action(
@@ -245,8 +254,16 @@ class MainWindow(QtWidgets.QMainWindow):
             self.openPrevImg,
             shortcuts["open_prev"],
             "prev",
-            self.tr("Open prev (hold Ctl+Shift to copy labels)"),
+            self.tr("Open prev (hold Ctrl+Shift to copy labels)"),
             enabled=False,
+        )
+        reload = action(
+            self.tr("&Reload directory"),
+            self.reload,
+            shortcuts["reload"],
+            "reload",
+            self.tr("Reload directory"),
+            enabled=True,
         )
         save = action(
             self.tr("&Save"),
@@ -270,8 +287,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.deleteFile,
             shortcuts["delete_file"],
             "delete",
-            self.tr("Delete current label file"),
-            enabled=False,
+            self.tr("Delete current label file and image"),
+            enabled=True,
         )
 
         changeOutputDir = action(
@@ -612,8 +629,10 @@ class MainWindow(QtWidgets.QMainWindow):
             brightnessContrast=brightnessContrast,
             zoomActions=zoomActions,
             openNextImg=openNextImg,
+            openNextBlankImg=openNextBlankImg,
             openPrevImg=openPrevImg,
-            fileMenuActions=(open_, opendir, save, saveAs, close, quit),
+            reload=reload,
+            fileMenuActions=(open_, opendir, reload, save, saveAs, close, quit),
             tool=(),
             # XXX: need to add some actions here to activate the shortcut
             editMenu=(
@@ -676,7 +695,9 @@ class MainWindow(QtWidgets.QMainWindow):
             (
                 open_,
                 openNextImg,
+                openNextBlankImg,
                 openPrevImg,
+                reload,
                 opendir,
                 self.menus.recentFiles,
                 save,
@@ -738,7 +759,7 @@ class MainWindow(QtWidgets.QMainWindow):
             save,
             deleteFile,
             None,
-            createMode,
+            createRectangleMode,
             editMode,
             duplicate,
             copy,
@@ -887,10 +908,7 @@ class MainWindow(QtWidgets.QMainWindow):
             title = "{} - {}".format(title, self.filename)
         self.setWindowTitle(title)
 
-        if self.hasLabelFile():
-            self.actions.deleteFile.setEnabled(True)
-        else:
-            self.actions.deleteFile.setEnabled(False)
+        self.actions.deleteFile.setEnabled(True)
 
     def toggleActions(self, value=True):
         """Enable/Disable widgets which depend on an opened image."""
@@ -1286,6 +1304,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 if len(items) != 1:
                     raise RuntimeError("There are duplicate files.")
                 items[0].setCheckState(Qt.Checked)
+                self.modifiedLabelFiles.add(filename)
+                items[0].setForeground(Qt.blue)
+
             # disable allows next and previous image to proceed
             # self.filename = filename
             return True
@@ -1345,9 +1366,16 @@ class MainWindow(QtWidgets.QMainWindow):
         group_id = None
         if self._config["display_label_popup"] or not text:
             previous_text = self.labelDialog.edit.text()
-            text, flags, group_id = self.labelDialog.popUp(text)
-            if not text:
-                self.labelDialog.edit.setText(previous_text)
+
+            if previous_text and not self._config["display_label_popup"]:
+                text = previous_text
+            else:
+                text, flags, group_id = self.labelDialog.popUp(text)
+                if not text:
+                    if not previous_text and len(self.labelList):
+                        previous_text = self.labelList[0].text().split()[0]
+                        text = previous_text
+                    self.labelDialog.edit.setText(previous_text)
 
         if text and not self.validateLabel(text):
             self.errorMessage(
@@ -1369,6 +1397,8 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.canvas.undoLastLine()
             self.canvas.shapesBackups.pop()
+
+        self.setEditMode()
 
     def scrollRequest(self, delta, orientation):
         units = -delta * 0.1  # natural scroll
@@ -1728,6 +1758,47 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._config["keep_prev"] = keep_prev
 
+    def openNextBlankImg(self, _value=False, load=True):
+        keep_prev = self._config["keep_prev"]
+        if QtWidgets.QApplication.keyboardModifiers() == (
+            Qt.ControlModifier | Qt.ShiftModifier
+        ):
+            self._config["keep_prev"] = True
+
+        if not self.mayContinue():
+            return
+
+        if len(self.imageList) <= 0:
+            return
+
+        filename = None
+
+        fromIndex = -1
+        if self.filename in self.imageList:
+            fromIndex = self.imageList.index(self.filename)
+        if filename is None:
+            for i in range(self.fileListWidget.count()):
+                if i <= fromIndex:
+                    continue
+
+                item = self.fileListWidget.item(i)
+                if item and item.checkState() == Qt.Unchecked:
+                    currIndex = self.imageList.index(item.text())
+                    if currIndex < len(self.imageList):
+                        filename = self.imageList[currIndex]
+                    break
+
+        if self.filename is None:
+            filename = self.imageList[0]
+
+        if filename is not None:
+            self.filename = filename
+
+            if self.filename and load:
+                self.loadFile(self.filename)
+
+            self._config["keep_prev"] = keep_prev
+
     def openFile(self, _value=False):
         if not self.mayContinue():
             return
@@ -1863,22 +1934,44 @@ class MainWindow(QtWidgets.QMainWindow):
     def deleteFile(self):
         mb = QtWidgets.QMessageBox
         msg = self.tr(
-            "You are about to permanently delete this label file, "
+            "You are about to permanently delete this label and image file, "
             "proceed anyway?"
         )
         answer = mb.warning(self, self.tr("Attention"), msg, mb.Yes | mb.No)
         if answer != mb.Yes:
             return
 
+        image_file = self.filename
         label_file = self.getLabelFile()
-        if osp.exists(label_file):
-            os.remove(label_file)
-            logger.info("Label file is removed: {}".format(label_file))
 
-            item = self.fileListWidget.currentItem()
-            item.setCheckState(Qt.Unchecked)
+        next_filename = None
+        if image_file in self.imageList:
+            image_list_index = self.imageList.index(image_file)
+            if image_list_index < len(self.imageList) - 1:
+                next_filename = self.imageList[image_list_index + 1]
+            elif 0 < image_list_index < len(self.imageList):
+                next_filename = self.imageList[image_list_index - 1]
 
-            self.resetState()
+        try:
+            if osp.exists(image_file):
+                os.remove(image_file)
+                logger.info("Image file is removed: {}".format(image_file))
+        except Exception as err:
+            logger.error("Error removing image file", exc_info=err)
+
+        self.importDirImages(self.lastOpenDir, load=True)
+
+        if next_filename is not None:
+            self.filename = next_filename
+            self.loadFile(next_filename)
+
+        try:
+            if osp.exists(label_file):
+                os.remove(label_file)
+                logger.info("Label file is removed: {}".format(label_file))
+                self.modifiedLabelFiles.remove(os.path.basename(label_file))
+        except Exception as err:
+            logger.error("Error removing label file", exc_info=err)
 
     # Message Dialogs. #
     def hasLabels(self):
@@ -1998,6 +2091,9 @@ class MainWindow(QtWidgets.QMainWindow):
             lst.append(item.text())
         return lst
 
+    def reload(self):
+        self.importDirImages(self.lastOpenDir, load=True)
+
     def importDroppedImageFiles(self, imageFiles):
         extensions = [
             ".%s" % fmt.data().decode().lower()
@@ -2026,12 +2122,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if len(self.imageList) > 1:
             self.actions.openNextImg.setEnabled(True)
+            self.actions.openNextBlankImg.setEnabled(True)
             self.actions.openPrevImg.setEnabled(True)
 
         self.openNextImg()
 
     def importDirImages(self, dirpath, pattern=None, load=True):
         self.actions.openNextImg.setEnabled(True)
+        self.actions.openNextBlankImg.setEnabled(True)
         self.actions.openPrevImg.setEnabled(True)
 
         if not self.mayContinue() or not dirpath:
@@ -2049,6 +2147,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 label_file = osp.join(self.output_dir, label_file_without_path)
             item = QtWidgets.QListWidgetItem(filename)
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            if label_file in self.modifiedLabelFiles:
+                item.setForeground(Qt.blue)
             if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(
                 label_file
             ):
