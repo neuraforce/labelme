@@ -65,6 +65,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if config is None:
             config = get_config()
         self._config = config
+        self._previous_text = None
 
         # set default shape colors
         Shape.line_color = QtGui.QColor(*self._config["shape"]["line_color"])
@@ -1412,22 +1413,15 @@ class MainWindow(QtWidgets.QMainWindow):
         text = None
         if items:
             text = items[0].data(Qt.UserRole)
+        if not text and hasattr(self, "_previous_text"):
+            text = self._previous_text
         flags = {}
         group_id = None
         description = ""
-        if self._config["display_label_popup"] or not text:
-            previous_text = self.labelDialog.edit.text()
-            text, flags, group_id, description = self.labelDialog.popUp(text)
-
-            if previous_text and not self._config["display_label_popup"]:
-                text = previous_text
-            else:
-                text, flags, group_id = self.labelDialog.popUp(text)
-                if not text:
-                    if not previous_text and len(self.labelList):
-                        previous_text = self.labelList[0].text().split()[0]
-                        text = previous_text
-                    self.labelDialog.edit.setText(previous_text)
+        display_popup = self._config["display_label_popup"]
+        if display_popup or not text:
+            text, flags, group_id, description = self.labelDialog.popUp(self._previous_text)
+            self._previous_text = text
 
         if text and not self.validateLabel(text):
             self.errorMessage(
@@ -1437,6 +1431,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 ),
             )
             text = ""
+            self._previous_text = ""
+
         if text:
             self.labelList.clearSelection()
             shape = self.canvas.setLastLabel(text, flags)
