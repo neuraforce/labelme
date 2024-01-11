@@ -8,7 +8,6 @@ import labelme.app
 import labelme.config
 import labelme.testing
 
-
 here = osp.dirname(osp.abspath(__file__))
 data_dir = osp.join(here, "data")
 
@@ -55,8 +54,7 @@ def test_MainWindow_open_json(qtbot):
         win.close()
 
 
-@pytest.mark.gui
-def test_MainWindow_open_dir(qtbot):
+def create_MainWindow_with_directory(qtbot):
     directory = osp.join(data_dir, "raw")
     win = labelme.app.MainWindow(filename=directory)
     qtbot.addWidget(win)
@@ -66,13 +64,13 @@ def test_MainWindow_open_dir(qtbot):
 
 @pytest.mark.gui
 def test_MainWindow_openNextImg(qtbot):
-    win = test_MainWindow_open_dir(qtbot)
+    win = create_MainWindow_with_directory(qtbot)
     win.openNextImg()
 
 
 @pytest.mark.gui
 def test_MainWindow_openPrevImg(qtbot):
-    win = test_MainWindow_open_dir(qtbot)
+    win = create_MainWindow_with_directory(qtbot)
     win.openNextImg()
 
 
@@ -84,7 +82,9 @@ def test_MainWindow_annotate_jpg(qtbot):
 
     config = labelme.config.get_default_config()
     win = labelme.app.MainWindow(
-        config=config, filename=input_file, output_file=out_file,
+        config=config,
+        filename=input_file,
+        output_file=out_file,
     )
     qtbot.addWidget(win)
     _win_show_and_wait_imageData(qtbot, win)
@@ -102,6 +102,7 @@ def test_MainWindow_annotate_jpg(qtbot):
             group_id=None,
             points=points,
             shape_type="polygon",
+            mask=None,
             flags={},
             other_data={},
         )

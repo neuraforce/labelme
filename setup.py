@@ -12,9 +12,7 @@ from setuptools import setup
 def get_version():
     filename = "labelme/__init__.py"
     with open(filename) as f:
-        match = re.search(
-            r"""^__version__ = ['"]([^'"]*)['"]""", f.read(), re.M
-        )
+        match = re.search(r"""^__version__ = ['"]([^'"]*)['"]""", f.read(), re.M)
     if not match:
         raise RuntimeError("{} doesn't contain __version__".format(filename))
     version = match.groups()[0]
@@ -23,13 +21,16 @@ def get_version():
 
 def get_install_requires():
     install_requires = [
-        "imgviz>=0.11",
-        "matplotlib<3.3",  # for PyInstaller
+        "gdown",
+        "imgviz>=1.7.5",
+        "matplotlib",
         "natsort>=7.1.0",
         "numpy",
+        "onnxruntime>=1.14.1,!=1.16.0",
         "Pillow>=2.8",
         "PyYAML",
         "qtpy!=1.11.2",
+        "scikit-image",
         "termcolor",
     ]
 
@@ -141,13 +142,14 @@ def main():
             "Programming Language :: Python :: 3.9",
             "Programming Language :: Python :: 3 :: Only",
         ],
-        package_data={"labelme": ["icons/*", "config/*.yaml"]},
+        package_data={"labelme": ["icons/*", "config/*.yaml", "translate/*"]},
         entry_points={
             "console_scripts": [
                 "labelme=labelme.__main__:main",
                 "labelme_draw_json=labelme.cli.draw_json:main",
                 "labelme_draw_label_png=labelme.cli.draw_label_png:main",
                 "labelme_json_to_dataset=labelme.cli.json_to_dataset:main",
+                "labelme_export_json=labelme.cli.export_json:main",
                 "labelme_on_docker=labelme.cli.on_docker:main",
             ],
         },

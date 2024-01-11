@@ -1,8 +1,8 @@
+import json
+
 from qtpy import QtCore
 from qtpy import QtGui
 from qtpy import QtWidgets
-
-import json
 
 
 class ScrollAreaPreview(QtWidgets.QScrollArea):
@@ -52,9 +52,7 @@ class FileDialogPreview(QtWidgets.QFileDialog):
         if path.lower().endswith(".json"):
             with open(path, "r") as f:
                 data = json.load(f)
-                self.labelPreview.setText(
-                    json.dumps(data, indent=4, sort_keys=False)
-                )
+                self.labelPreview.setText(json.dumps(data, indent=4, sort_keys=False))
             self.labelPreview.label.setAlignment(
                 QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop
             )

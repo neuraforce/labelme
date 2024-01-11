@@ -1,12 +1,10 @@
-from math import sqrt
 import os.path as osp
+from math import sqrt
 
 import numpy as np
-
 from qtpy import QtCore
 from qtpy import QtGui
 from qtpy import QtWidgets
-
 
 here = osp.dirname(osp.abspath(__file__))
 
@@ -91,7 +89,7 @@ def distancetoline(point, line):
     if np.dot((p3 - p2), (p1 - p2)) < 0:
         return np.linalg.norm(p3 - p2)
     if np.linalg.norm(p2 - p1) == 0:
-        return 0
+        return np.linalg.norm(p3 - p1)
     return np.linalg.norm(np.cross(p2 - p1, p1 - p3)) / np.linalg.norm(p2 - p1)
 
 
