@@ -1,15 +1,12 @@
 #!/usr/bin/env python
 
 import argparse
-import sys
 
 import imgviz
 import matplotlib.pyplot as plt
 
 from labelme import utils
 from labelme.label_file import LabelFile
-
-PY2 = sys.version_info[0] == 2
 
 
 def main():
@@ -32,7 +29,7 @@ def main():
 
     label_names = [None] * (max(label_name_to_value.values()) + 1)
     for name, value in label_name_to_value.items():
-        label_names[value] = name
+        label_names[value] = name  # type: ignore[call-overload]
     lbl_viz = imgviz.label2rgb(
         lbl,
         imgviz.asgray(img),

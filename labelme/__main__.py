@@ -1,20 +1,98 @@
 import argparse
 import codecs
-import logging
+import contextlib
+import io
 import os
 import os.path as osp
 import sys
+import traceback
 
 import yaml
-from qtpy import QtCore
-from qtpy import QtWidgets
+from loguru import logger
+from PyQt5 import QtCore
+from PyQt5 import QtWidgets
 
 from labelme import __appname__
 from labelme import __version__
 from labelme.app import MainWindow
 from labelme.config import get_config
-from labelme.logger import logger
 from labelme.utils import newIcon
+
+
+class _LoggerIO(io.StringIO):
+    def write(self, message: str) -> int:
+        if stripped_message := message.strip():
+            logger.debug(stripped_message)
+        return len(message)
+
+    def flush(self) -> None:
+        pass
+
+    def writable(self) -> bool:
+        return True
+
+    def readable(self) -> bool:
+        return False
+
+    def seekable(self) -> bool:
+        return False
+
+    @property
+    def closed(self) -> bool:
+        return False
+
+
+def _setup_loguru(logger_level: str) -> None:
+    try:
+        logger.remove(handler_id=0)
+    except ValueError:
+        pass
+
+    if sys.stderr:
+        logger.add(sys.stderr, level=logger_level)
+
+    cache_dir: str
+    if os.name == "nt":
+        cache_dir = os.path.join(os.environ["LOCALAPPDATA"], "labelme")
+    else:
+        cache_dir = os.path.expanduser("~/.cache/labelme")
+
+    os.makedirs(cache_dir, exist_ok=True)
+
+    log_file = os.path.join(cache_dir, "labelme.log")
+    logger.add(
+        log_file,
+        colorize=True,
+        level="DEBUG",
+        rotation="10 MB",
+        retention="30 days",
+        compression="gz",
+        enqueue=True,
+        backtrace=True,
+        diagnose=True,
+    )
+
+
+def _handle_exception(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        sys.exit(0)
+
+    traceback_str: str = "".join(
+        traceback.format_exception(exc_type, exc_value, exc_traceback)
+    )
+    logger.critical(traceback_str)
+
+    traceback_html: str = traceback_str.replace("\n", "<br/>").replace(" ", "&nbsp;")
+    QtWidgets.QMessageBox.critical(
+        None,
+        "Error",
+        f"An unexpected error occurred. The application will close.<br/><br/>Please report issues following the <a href='https://labelme.io/docs/troubleshoot'>Troubleshoot</a>.<br/><br/>{traceback_html}",  # noqa: E501
+    )
+
+    if app := QtWidgets.QApplication.instance():
+        app.quit()
+    sys.exit(1)
 
 
 def main():
@@ -109,7 +187,9 @@ def main():
         print("{0} {1}".format(__appname__, __version__))
         sys.exit(0)
 
-    logger.setLevel(getattr(logging, args.logger_level.upper()))
+    _setup_loguru(logger_level=args.logger_level.upper())
+
+    sys.excepthook = _handle_exception
 
     if hasattr(args, "flags"):
         if os.path.isfile(args.flags):
@@ -177,9 +257,10 @@ def main():
         win.settings.clear()
         sys.exit(0)
 
-    win.show()
-    win.raise_()
-    sys.exit(app.exec_())
+    with contextlib.redirect_stderr(new_target=_LoggerIO()):
+        win.show()
+        win.raise_()
+        sys.exit(app.exec_())
 
 
 # this main block is required to generate executable by pyinstaller

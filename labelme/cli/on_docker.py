@@ -3,12 +3,12 @@
 from __future__ import print_function
 
 import argparse
-import distutils.spawn
 import json
 import os
 import os.path as osp
 import platform
 import shlex
+import shutil
 import subprocess
 import sys
 
@@ -20,10 +20,10 @@ def get_ip():
     elif dist == "Darwin":
         cmd = "ifconfig en0"
         output = subprocess.check_output(shlex.split(cmd))
-        if str != bytes:  # Python3
-            output = output.decode("utf-8")
+        if str != bytes:  # noqa: E721
+            output = output.decode("utf-8")  # type: ignore[assignment]
         for row in output.splitlines():
-            cols = row.strip().split(" ")
+            cols = row.strip().split(" ")  # type: ignore[arg-type]
             if cols[0] == "inet":
                 ip = cols[1]
                 return ip
@@ -85,7 +85,7 @@ def main():
     parser.add_argument("-O", "--output")
     args = parser.parse_args()
 
-    if not distutils.spawn.find_executable("docker"):
+    if not shutil.which("docker"):
         print("Please install docker", file=sys.stderr)
         sys.exit(1)
 

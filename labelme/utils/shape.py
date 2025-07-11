@@ -1,11 +1,15 @@
+# MIT License
+# Copyright (c) Kentaro Wada
+
 import math
 import uuid
+from typing import Optional
 
 import numpy as np
+import numpy.typing as npt
 import PIL.Image
 import PIL.ImageDraw
-
-from labelme.logger import logger
+from loguru import logger
 
 
 def polygons_to_mask(img_shape, polygons, shape_type=None):
@@ -15,9 +19,14 @@ def polygons_to_mask(img_shape, polygons, shape_type=None):
     return shape_to_mask(img_shape, points=polygons, shape_type=shape_type)
 
 
-def shape_to_mask(img_shape, points, shape_type=None, line_width=10, point_size=5):
-    mask = np.zeros(img_shape[:2], dtype=np.uint8)
-    mask = PIL.Image.fromarray(mask)
+def shape_to_mask(
+    img_shape: tuple[int, ...],
+    points: list[list[float]],
+    shape_type: Optional[str] = None,
+    line_width: int = 10,
+    point_size: int = 5,
+) -> npt.NDArray[np.bool_]:
+    mask = PIL.Image.fromarray(np.zeros(img_shape[:2], dtype=np.uint8))
     draw = PIL.ImageDraw.Draw(mask)
     xy = [tuple(point) for point in points]
     if shape_type == "circle":
@@ -27,22 +36,23 @@ def shape_to_mask(img_shape, points, shape_type=None, line_width=10, point_size=
         draw.ellipse([cx - d, cy - d, cx + d, cy + d], outline=1, fill=1)
     elif shape_type == "rectangle":
         assert len(xy) == 2, "Shape of shape_type=rectangle must have 2 points"
-        draw.rectangle(xy, outline=1, fill=1)
+        draw.rectangle(xy, outline=1, fill=1)  # type: ignore[arg-type]
     elif shape_type == "line":
         assert len(xy) == 2, "Shape of shape_type=line must have 2 points"
-        draw.line(xy=xy, fill=1, width=line_width)
+        draw.line(xy=xy, fill=1, width=line_width)  # type: ignore[arg-type]
     elif shape_type == "linestrip":
-        draw.line(xy=xy, fill=1, width=line_width)
+        draw.line(xy=xy, fill=1, width=line_width)  # type: ignore[arg-type]
     elif shape_type == "point":
         assert len(xy) == 1, "Shape of shape_type=point must have 1 points"
         cx, cy = xy[0]
         r = point_size
         draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=1, fill=1)
-    else:
+    elif shape_type in [None, "polygon"]:
         assert len(xy) > 2, "Polygon must have points more than 2"
-        draw.polygon(xy=xy, outline=1, fill=1)
-    mask = np.array(mask, dtype=bool)
-    return mask
+        draw.polygon(xy=xy, outline=1, fill=1)  # type: ignore[arg-type]
+    else:
+        raise ValueError(f"shape_type={shape_type!r} is not supported.")
+    return np.array(mask, dtype=bool)
 
 
 def shapes_to_label(img_shape, shapes, label_name_to_value):
@@ -65,7 +75,16 @@ def shapes_to_label(img_shape, shapes, label_name_to_value):
         ins_id = instances.index(instance) + 1
         cls_id = label_name_to_value[cls_name]
 
-        mask = shape_to_mask(img_shape[:2], points, shape_type)
+        mask: npt.NDArray[np.bool_]
+        if shape_type == "mask":
+            if not isinstance(shape["mask"], np.ndarray):
+                raise ValueError("shape['mask'] must be numpy.ndarray")
+            mask = np.zeros(img_shape[:2], dtype=bool)
+            (x1, y1), (x2, y2) = np.asarray(points).astype(int)
+            mask[y1 : y2 + 1, x1 : x2 + 1] = shape["mask"]
+        else:
+            mask = shape_to_mask(img_shape[:2], points, shape_type)
+
         cls[mask] = cls_id
         ins[mask] = ins_id
 
@@ -73,7 +92,7 @@ def shapes_to_label(img_shape, shapes, label_name_to_value):
 
 
 def labelme_shapes_to_label(img_shape, shapes):
-    logger.warn(
+    logger.warning(
         "labelme_shapes_to_label is deprecated, so please use " "shapes_to_label."
     )
 
@@ -102,5 +121,5 @@ def masks_to_bboxes(masks):
         where = np.argwhere(mask)
         (y1, x1), (y2, x2) = where.min(0), where.max(0) + 1
         bboxes.append((y1, x1, y2, x2))
-    bboxes = np.asarray(bboxes, dtype=np.float32)
+    bboxes = np.asarray(bboxes, dtype=np.float32)  # type: ignore[assignment]
     return bboxes
