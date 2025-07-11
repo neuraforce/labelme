@@ -32,6 +32,8 @@ class LabelFile(object):
         self.shapes = []
         self.imagePath = None
         self.imageData = None
+        self.imageHeight = None
+        self.imageWidth = None
         if filename is not None:
             self.load(filename)
         self.filename = filename
@@ -90,7 +92,7 @@ class LabelFile(object):
                 imageData = self.load_image_file(imagePath)
             flags = data.get("flags") or {}
             imagePath = data["imagePath"]
-            self._check_image_height_and_width(
+            imageHeight, imageWidth = self._check_image_height_and_width(
                 base64.b64encode(imageData).decode("utf-8"),
                 data.get("imageHeight"),
                 data.get("imageWidth"),
@@ -123,6 +125,8 @@ class LabelFile(object):
         self.shapes = shapes
         self.imagePath = imagePath
         self.imageData = imageData
+        self.imageHeight = imageHeight
+        self.imageWidth = imageWidth
         self.filename = filename
         self.otherData = otherData
 
@@ -179,6 +183,8 @@ class LabelFile(object):
             with open(filename, "w") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             self.filename = filename
+            self.imageHeight = imageHeight
+            self.imageWidth = imageWidth
         except Exception as e:
             raise LabelFileError(e)
 
