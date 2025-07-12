@@ -143,6 +143,13 @@ pyinstaller labelme/labelme/__main__.py \
   --onedir
 ```
 
+On Windows systems the `build_windows_exe.bat` script automates these
+steps using a virtual environment:
+
+```cmd
+build_windows_exe.bat
+```
+
 ## Improvements by neuraforce
 
 - Track modified files and color them blue
