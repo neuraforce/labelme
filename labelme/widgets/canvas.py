@@ -3,11 +3,44 @@ from typing import Literal
 
 import imgviz
 import numpy as np
-import osam
 from loguru import logger
 from PyQt5 import QtCore
 from PyQt5 import QtGui
 from PyQt5 import QtWidgets
+
+# Make osam optional
+OSAM_AVAILABLE = False
+try:
+    import osam
+    OSAM_AVAILABLE = True
+except ImportError:
+    logger.warning("osam module not available. AI functions will be disabled.")
+    # Define empty placeholder for osam to avoid errors when it's not available
+    class DummyOsam:
+        class types:
+            # Placeholder for ImageEmbedding type
+            class ImageEmbedding:
+                def __init__(self):
+                    pass
+                    
+            class Model:
+                def __init__(self, **kwargs):
+                    pass
+                    
+                def __call__(self, **kwargs):
+                    return None
+                    
+                def get_image_embedding(self, *args, **kwargs):
+                    return DummyOsam.types.ImageEmbedding()
+        
+        class apis:
+            @staticmethod
+            def get_model_type_by_name(*args, **kwargs):
+                return lambda: DummyOsam.types.Model()
+            
+    # If osam is not available, use the dummy implementation
+    if not OSAM_AVAILABLE:
+        osam = DummyOsam()
 
 import labelme.utils
 from labelme._automation import polygon_from_mask

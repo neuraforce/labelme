@@ -3,8 +3,42 @@ import time
 
 import numpy as np
 import numpy.typing as npt
-import osam
 from loguru import logger
+
+# Make osam and onnxruntime optional
+OSAM_AVAILABLE = False
+try:
+    import osam
+    OSAM_AVAILABLE = True
+except ImportError:
+    logger.warning("osam module not available. AI functions will be disabled.")
+    # Define empty placeholder to avoid errors when osam is not available
+    class DummyOsam:
+        class types:
+            class GenerateRequest:
+                def __init__(self, **kwargs):
+                    pass
+                    
+            class Prompt:
+                def __init__(self, **kwargs):
+                    pass
+            
+            class GenerateResponse:
+                def __init__(self):
+                    self.annotations = []
+                    
+        class apis:
+            @staticmethod
+            def generate(**kwargs):
+                return DummyOsam.types.GenerateResponse()
+                
+            @staticmethod
+            def non_maximum_suppression(**kwargs):
+                return np.array([]), np.array([]), np.array([])
+                
+    # If osam is not available, use the dummy implementation
+    if not OSAM_AVAILABLE:
+        osam = DummyOsam()
 
 
 def get_bboxes_from_texts(
