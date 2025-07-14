@@ -206,10 +206,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.iouFilter = _IouThresholdWidget()
         self.applyIouFilterButton = QtWidgets.QPushButton(self.tr("Apply IoU filter"))
         self.applyIouFilterButton.clicked.connect(self.applyIouFilter)
+        self.clearIouFilterButton = QtWidgets.QPushButton(self.tr("Clear"))
+        self.clearIouFilterButton.clicked.connect(self.clearIouFilter)
         iouLayout = QtWidgets.QHBoxLayout()
         iouLayout.setContentsMargins(0, 0, 0, 0)
         iouLayout.addWidget(self.iouFilter)
         iouLayout.addWidget(self.applyIouFilterButton)
+        iouLayout.addWidget(self.clearIouFilterButton)
         iouWidget = QtWidgets.QWidget()
         iouWidget.setLayout(iouLayout)
 
@@ -257,6 +260,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.newShape.connect(self.newShape)
         self.canvas.shapeMoved.connect(self.setDirty)
         self.canvas.selectionChanged.connect(self.shapeSelectionChanged)
+        self.canvas.shapeDoubleClicked.connect(self._shape_double_clicked)
         self.canvas.drawingPolygon.connect(self.toggleDrawingSensitive)
 
         self.setCentralWidget(scrollArea)
@@ -1385,12 +1389,18 @@ class MainWindow(QtWidgets.QMainWindow):
             rgb = self._get_rgb_by_label(shape.label)
             self.uniqLabelList.setItemLabel(item, shape.label, rgb)
 
+    def _shape_double_clicked(self, shape: Shape) -> None:
+        item = self.labelList.findItemByShape(shape)
+        self.labelList.selectItem(item)
+        self._edit_label()
+
     def fileSearchChanged(self):
         self.importDirImages(
             self.lastOpenDir,
             pattern=self.fileSearch.text(),
             load=False,
         )
+        self._update_file_dock_title()
 
     def applyIouFilter(self):
         threshold = self.iouFilter.get_value()
@@ -1401,6 +1411,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 pattern=self.fileSearch.text(),
                 load=False,
             )
+            self._update_file_dock_title()
             return
 
         progress = QtWidgets.QProgressDialog(
@@ -1448,11 +1459,27 @@ class MainWindow(QtWidgets.QMainWindow):
         self.status(
             self.tr("%d files match IoU >= %.2f") % (len(matched), threshold)
         )
+        self._update_file_dock_title()
+
+    def clearIouFilter(self) -> None:
+        self.importDirImages(
+            self.lastOpenDir,
+            pattern=self.fileSearch.text(),
+            load=False,
+        )
+        self._update_file_dock_title()
 
     def filterByLabel(self, label: str) -> None:
         """Filter file list showing only images whose cached annotations
         contain the given label."""
         self.stop_background_caching()
+        self.importDirImages(
+            self.lastOpenDir,
+            pattern=self.fileSearch.text(),
+            load=False,
+        )
+        if self.iouFilter.get_value() > 0:
+            self.applyIouFilter()
         matched: list[str] = []
         for i in range(self.fileListWidget.count()):
             filename = self.fileListWidget.item(i).text()
@@ -1471,6 +1498,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.fileListWidget.addItem(item)
         self.start_background_caching()
         self.status(self.tr("%d files contain %s") % (len(matched), label))
+        self._update_file_dock_title()
 
     def fileSelectionChanged(self):
         items = self.fileListWidget.selectedItems()
@@ -1486,6 +1514,7 @@ class MainWindow(QtWidgets.QMainWindow):
             filename = self.imageList[currIndex]
             if filename:
                 self.loadFile(filename)
+                self._update_class_counts()
 
     # React to canvas signals.
     def shapeSelectionChanged(self, selected_shapes):
@@ -1572,6 +1601,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def _update_class_counts(self) -> None:
         counts = self._compute_label_counts()
         self.classCountWidget.set_counts(counts, self._get_rgb_by_label)
+
+    def _update_file_dock_title(self) -> None:
+        count = self.fileListWidget.count()
+        self.file_dock.setWindowTitle(self.tr("File List (%d)") % count)
 
     def remLabels(self, shapes):
         for shape in shapes:
@@ -1897,6 +1930,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file):
             try:
                 self.labelFile = LabelFile(label_file)
+                try:
+                    shapes = LabelFile.load_shapes(label_file)
+                    self._label_cache[label_file] = shapes
+                except Exception:
+                    pass
             except LabelFileError as e:
                 self.errorMessage(
                     self.tr("Error opening file"),
@@ -1994,6 +2032,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.toggleActions(True)
         self.canvas.setFocus()
         self.status(str(self.tr("Loaded %s")) % osp.basename(str(filename)))
+        self._update_class_counts()
         return True
 
     def resizeEvent(self, event):
@@ -2520,6 +2559,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.fileListWidget.addItem(item)
         self.openNextImg(load=load)
         self.start_background_caching()
+        self._update_file_dock_title()
 
     def scanAllImages(self, folderPath):
         extensions = [

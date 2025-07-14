@@ -65,6 +65,7 @@ class Canvas(QtWidgets.QWidget):
     newShape = QtCore.pyqtSignal()
     selectionChanged = QtCore.pyqtSignal(list)
     shapeMoved = QtCore.pyqtSignal()
+    shapeDoubleClicked = QtCore.pyqtSignal(object)
     drawingPolygon = QtCore.pyqtSignal(bool)
     vertexSelected = QtCore.pyqtSignal(bool)
     mouseMoved = QtCore.pyqtSignal(QtCore.QPointF)
@@ -572,13 +573,23 @@ class Canvas(QtWidgets.QWidget):
         )
 
     def mouseDoubleClickEvent(self, ev):
-        if self.double_click != "close":
+        if (
+            self.double_click == "close"
+            and (
+                (self.createMode == "polygon" and self.canCloseShape())
+                or self.createMode in ["ai_polygon", "ai_mask"]
+            )
+        ):
+            self.finalise()
             return
 
-        if (
-            self.createMode == "polygon" and self.canCloseShape()
-        ) or self.createMode in ["ai_polygon", "ai_mask"]:
-            self.finalise()
+        if not self.drawing() and self.editing():
+            pos = self.transformPos(ev.localPos())
+            for shape in reversed(self.shapes):
+                if self.isVisible(shape) and shape.containsPoint(pos):
+                    self.selectShapePoint(pos, multiple_selection_mode=False)
+                    self.shapeDoubleClicked.emit(shape)
+                    return
 
     def selectShapes(self, shapes):
         self.setHiding()
