@@ -10,6 +10,7 @@ class ClassCountWidget(QtWidgets.QListWidget):
         super().__init__(parent)
         self.itemDoubleClicked.connect(self._emit_label)
         self.setMinimumWidth(120)
+        self.setMaximumHeight(60)
 
     def _emit_label(self, item: QtWidgets.QListWidgetItem) -> None:
         label = item.data(QtCore.Qt.UserRole)
