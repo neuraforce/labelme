@@ -14,6 +14,7 @@ class ClassCountWidget(QtWidgets.QListWidget):
         super().__init__(parent)
         self.itemDoubleClicked.connect(self._emit_label)
         self.setMinimumWidth(120)
+        self._selected_label: str | None = None
         # allow the dock to be resized vertically and provide a larger default
         # height via ``sizeHint``.
 
@@ -49,3 +50,15 @@ class ClassCountWidget(QtWidgets.QListWidget):
                 item.setForeground(QtGui.QColor(r, g, b))
             item.setFlags(QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable)
             self.addItem(item)
+        # reapply selection formatting after repopulating
+        self.set_selected_label(self._selected_label)
+
+    def set_selected_label(self, label: str | None) -> None:
+        """Highlight the currently selected label."""
+        self._selected_label = label
+        for i in range(self.count()):
+            item = self.item(i)
+            item_label = item.data(QtCore.Qt.UserRole)
+            font = item.font()
+            font.setBold(item_label == label)
+            item.setFont(font)

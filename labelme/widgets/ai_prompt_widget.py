@@ -114,3 +114,6 @@ class _IouThresholdWidget(QtWidgets.QWidget):
 
     def get_value(self) -> float:
         return self._threshold_widget.value()
+
+    def set_value(self, value: float) -> None:
+        self._threshold_widget.setValue(value)
