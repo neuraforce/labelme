@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 import functools
 import html
@@ -150,6 +150,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._label_cache = {}
         self._stop_background_cache = threading.Event()
         self._background_cache_thread = None
+        self._current_label_filter: str | None = None
 
         # Main widgets and related state.
         self.labelDialog = LabelDialog(
@@ -185,9 +186,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.uniqLabelList = UniqueLabelQListWidget()
         self.uniqLabelList.setToolTip(
-            self.tr(
-                "Select label to start annotating for it. " "Press 'Esc' to deselect."
-            )
+            self.tr("Select label to start annotating for it. Press 'Esc' to deselect.")
         )
         if self._config["labels"]:
             for label in self._config["labels"]:
@@ -233,9 +232,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Widget showing number of cached instances per class
         self.classCountWidget = ClassCountWidget()
         self.classCountWidget.labelDoubleClicked.connect(self.filterByLabel)
-        self.class_count_dock = QtWidgets.QDockWidget(
-            self.tr("Class Counts"), self
-        )
+        self.class_count_dock = QtWidgets.QDockWidget(self.tr("Class Counts"), self)
         self.class_count_dock.setObjectName("Class Counts")
         self.class_count_dock.setWidget(self.classCountWidget)
 
@@ -293,9 +290,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.addDockWidget(Qt.RightDockWidgetArea, self.label_dock)  # type: ignore[attr-defined]
         self.addDockWidget(Qt.RightDockWidgetArea, self.shape_dock)  # type: ignore[attr-defined]
         self.addDockWidget(Qt.RightDockWidgetArea, self.file_dock)  # type: ignore[attr-defined]
-        self.addDockWidget(
-            Qt.RightDockWidgetArea, self.class_count_dock
-        )  # type: ignore[attr-defined]
+        self.addDockWidget(Qt.RightDockWidgetArea, self.class_count_dock)  # type: ignore[attr-defined]
 
         # Actions
         action = functools.partial(utils.newAction, self)
@@ -913,7 +908,7 @@ class MainWindow(QtWidgets.QMainWindow):
             lambda index: self.canvas.set_ai_model_name(
                 model_name=self._selectAiModelComboBox.itemData(index)
             )
-            )
+        )
         self._selectAiModelComboBox.setCurrentIndex(model_index)
 
         self._ai_prompt_widget: AiPromptWidget = AiPromptWidget(
@@ -1468,18 +1463,22 @@ class MainWindow(QtWidgets.QMainWindow):
             item = QtWidgets.QListWidgetItem(filename)
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             self.fileListWidget.addItem(item)
-        self.status(
-            self.tr("%d files match IoU >= %.2f") % (len(matched), threshold)
-        )
+        self.status(self.tr("%d files match IoU >= %.2f") % (len(matched), threshold))
         self._update_file_dock_title()
 
     def clearIouFilter(self) -> None:
+        self.iouFilter.set_value(0)
+        self.clear_label_filter()
         self.importDirImages(
             self.lastOpenDir,
             pattern=self.fileSearch.text(),
             load=False,
         )
         self._update_file_dock_title()
+
+    def clear_label_filter(self) -> None:
+        self._current_label_filter = None
+        self.classCountWidget.set_selected_label(None)
 
     def filterByLabel(self, label: str) -> None:
         """Filter file list showing only images whose cached annotations
@@ -1499,6 +1498,13 @@ class MainWindow(QtWidgets.QMainWindow):
             if self.output_dir:
                 label_file = osp.join(self.output_dir, osp.basename(label_file))
             shapes = self._label_cache.get(label_file)
+            if shapes is None and QtCore.QFile.exists(label_file):
+                try:
+                    shapes = LabelFile.load_shapes(label_file)
+                except Exception:
+                    shapes = None
+                else:
+                    self._label_cache[label_file] = shapes
             if not shapes:
                 continue
             if any(s.get("label") == label for s in shapes):
@@ -1509,6 +1515,8 @@ class MainWindow(QtWidgets.QMainWindow):
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             self.fileListWidget.addItem(item)
         self.start_background_caching()
+        self._current_label_filter = label
+        self.classCountWidget.set_selected_label(label)
         self.status(self.tr("%d files contain %s") % (len(matched), label))
         self._update_file_dock_title()
 
@@ -1615,6 +1623,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _update_class_counts(self) -> None:
         counts = self._compute_label_counts()
         self.classCountWidget.set_counts(counts, self._get_rgb_by_label)
+        self.classCountWidget.set_selected_label(self._current_label_filter)
 
     def _update_file_dock_title(self) -> None:
         count = self.fileListWidget.count()
@@ -1953,8 +1962,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.errorMessage(
                     self.tr("Error opening file"),
                     self.tr(
-                        "<p><b>%s</b></p>"
-                        "<p>Make sure <i>%s</i> is a valid label file."
+                        "<p><b>%s</b></p><p>Make sure <i>%s</i> is a valid label file."
                     )
                     % (e, label_file),
                 )
@@ -2455,7 +2463,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def deleteSelectedShape(self):
         yes, no = QtWidgets.QMessageBox.Yes, QtWidgets.QMessageBox.No
         msg = self.tr(
-            "You are about to permanently delete {} polygons, " "proceed anyway?"
+            "You are about to permanently delete {} polygons, proceed anyway?"
         ).format(len(self.canvas.selectedShapes))
         if yes == QtWidgets.QMessageBox.warning(
             self, self.tr("Attention"), msg, yes | no, yes
