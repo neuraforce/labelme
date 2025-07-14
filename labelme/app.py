@@ -6,6 +6,7 @@ import math
 import os
 import os.path as osp
 import re
+import threading
 import webbrowser
 
 import imgviz
@@ -24,7 +25,6 @@ from labelme.label_file import LabelFile
 from labelme.label_file import LabelFileError
 from labelme.shape import Shape
 from labelme.widgets import AiPromptWidget
-from labelme.widgets.ai_prompt_widget import _IouThresholdWidget
 from labelme.widgets import BrightnessContrastDialog
 from labelme.widgets import Canvas
 from labelme.widgets import FileDialogPreview
@@ -34,6 +34,7 @@ from labelme.widgets import LabelListWidgetItem
 from labelme.widgets import ToolBar
 from labelme.widgets import UniqueLabelQListWidget
 from labelme.widgets import ZoomWidget
+from labelme.widgets.ai_prompt_widget import _IouThresholdWidget
 
 from . import utils
 
@@ -146,6 +147,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._copied_shapes = None
         # cache label file contents to avoid re-reading on filtering
         self._label_cache = {}
+        self._stop_background_cache = threading.Event()
+        self._background_cache_thread = None
 
         # Main widgets and related state.
         self.labelDialog = LabelDialog(
@@ -1035,6 +1038,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 label_file = osp.join(self.output_dir, label_file_without_path)
             self.saveLabels(label_file)
             return
+        else:
+            label_file = self.getLabelFile()
+            if self.output_dir:
+                label_file = osp.join(self.output_dir, osp.basename(label_file))
+            self._label_cache.pop(label_file, None)
         self.dirty = True
         self.actions.save.setEnabled(True)  # type: ignore[attr-defined]
         title = __appname__
@@ -1066,6 +1074,39 @@ class MainWindow(QtWidgets.QMainWindow):
             z.setEnabled(value)
         for action in self.actions.onLoadActive:  # type: ignore[attr-defined]
             action.setEnabled(value)
+
+    def _cache_files_background(self) -> None:
+        for i in range(self.fileListWidget.count()):
+            if self._stop_background_cache.is_set():
+                break
+            filename = self.fileListWidget.item(i).text()
+            label_file = osp.splitext(filename)[0] + ".json"
+            if self.output_dir:
+                label_file = osp.join(self.output_dir, osp.basename(label_file))
+            if label_file in self._label_cache:
+                continue
+            if not QtCore.QFile.exists(label_file):
+                continue
+            try:
+                shapes = LabelFile.load_shapes(label_file)
+            except Exception:
+                continue
+            self._label_cache[label_file] = shapes
+        self._stop_background_cache.set()
+
+    def start_background_caching(self) -> None:
+        if self._background_cache_thread and self._background_cache_thread.is_alive():
+            return
+        self._stop_background_cache.clear()
+        self._background_cache_thread = threading.Thread(
+            target=self._cache_files_background, daemon=True
+        )
+        self._background_cache_thread.start()
+
+    def stop_background_caching(self) -> None:
+        if self._background_cache_thread and self._background_cache_thread.is_alive():
+            self._stop_background_cache.set()
+            self._background_cache_thread.join()
 
     def queueEvent(self, function):
         QtCore.QTimer.singleShot(0, function)
@@ -1337,6 +1378,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def applyIouFilter(self):
         threshold = self.iouFilter.get_value()
+        self.stop_background_caching()
         if threshold <= 0:
             self.importDirImages(
                 self.lastOpenDir,
@@ -1377,6 +1419,7 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QApplication.processEvents()
         progress.setValue(self.fileListWidget.count())
         progress.close()
+        self.start_background_caching()
 
         self.fileListWidget.clear()
         for filename in matched:
@@ -1644,7 +1687,9 @@ class MainWindow(QtWidgets.QMainWindow):
         description = ""
         display_popup = self._config["display_label_popup"]
         if display_popup or not text:
-            text, flags, group_id, description = self.labelDialog.popUp(self._previous_text)
+            text, flags, group_id, description = self.labelDialog.popUp(
+                self._previous_text
+            )
             self._previous_text = text
 
         if text and not self.validateLabel(text):
@@ -1940,6 +1985,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def closeEvent(self, event):
         if not self.mayContinue():
             event.ignore()
+        self.stop_background_caching()
         self.settings.setValue("filename", self.filename if self.filename else "")
         self.settings.setValue("window/size", self.size())
         self.settings.setValue("window/position", self.pos())
@@ -2175,6 +2221,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if filename and self.saveLabels(filename):
             self.addRecentFile(filename)
             self.setClean()
+            self._label_cache.pop(filename, None)
 
     def closeFile(self, _value=False):
         if not self.mayContinue():
@@ -2384,6 +2431,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.actions.openNextImg.setEnabled(True)
         self.actions.openNextBlankImg.setEnabled(True)
         self.actions.openPrevImg.setEnabled(True)
+        self.stop_background_caching()
 
         if not self.mayContinue() or not dirpath:
             return
@@ -2413,6 +2461,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 item.setCheckState(Qt.Unchecked)  # type: ignore[attr-defined]
             self.fileListWidget.addItem(item)
         self.openNextImg(load=load)
+        self.start_background_caching()
 
     def scanAllImages(self, folderPath):
         extensions = [
