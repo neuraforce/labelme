@@ -27,6 +27,7 @@ from labelme.shape import Shape
 from labelme.widgets import AiPromptWidget
 from labelme.widgets import BrightnessContrastDialog
 from labelme.widgets import Canvas
+from labelme.widgets import ClassCountWidget
 from labelme.widgets import FileDialogPreview
 from labelme.widgets import LabelDialog
 from labelme.widgets import LabelListWidget
@@ -34,7 +35,6 @@ from labelme.widgets import LabelListWidgetItem
 from labelme.widgets import ToolBar
 from labelme.widgets import UniqueLabelQListWidget
 from labelme.widgets import ZoomWidget
-from labelme.widgets import ClassCountWidget
 from labelme.widgets.ai_prompt_widget import _IouThresholdWidget
 
 from . import utils
@@ -270,7 +270,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.setCentralWidget(scrollArea)
 
-        features = QtWidgets.QDockWidget.DockWidgetFeatures()
         for dock in [
             "flag_dock",
             "label_dock",
@@ -278,14 +277,16 @@ class MainWindow(QtWidgets.QMainWindow):
             "file_dock",
             "class_count_dock",
         ]:
-            if self._config[dock]["closable"]:
-                features = features | QtWidgets.QDockWidget.DockWidgetClosable
-            if self._config[dock]["floatable"]:
-                features = features | QtWidgets.QDockWidget.DockWidgetFloatable
-            if self._config[dock]["movable"]:
-                features = features | QtWidgets.QDockWidget.DockWidgetMovable
+            features = QtWidgets.QDockWidget.DockWidgetFeatures()
+            dock_conf = self._config.get(dock, {})
+            if dock_conf.get("closable", True):
+                features |= QtWidgets.QDockWidget.DockWidgetClosable
+            if dock_conf.get("floatable", True):
+                features |= QtWidgets.QDockWidget.DockWidgetFloatable
+            if dock_conf.get("movable", True):
+                features |= QtWidgets.QDockWidget.DockWidgetMovable
             getattr(self, dock).setFeatures(features)
-            if self._config[dock]["show"] is False:
+            if dock_conf.get("show", True) is False:
                 getattr(self, dock).setVisible(False)
 
         self.addDockWidget(Qt.RightDockWidgetArea, self.flag_dock)  # type: ignore[attr-defined]
