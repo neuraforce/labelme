@@ -24,6 +24,7 @@ from labelme.label_file import LabelFile
 from labelme.label_file import LabelFileError
 from labelme.shape import Shape
 from labelme.widgets import AiPromptWidget
+from labelme.widgets.ai_prompt_widget import _IouThresholdWidget
 from labelme.widgets import BrightnessContrastDialog
 from labelme.widgets import Canvas
 from labelme.widgets import FileDialogPreview
@@ -44,6 +45,53 @@ from . import utils
 
 
 LABEL_COLORMAP = imgviz.label_colormap()
+
+
+def _bbox_from_shape(shape):
+    points = shape.get("points", [])
+    if not points:
+        return None
+    shape_type = shape.get("shape_type", "polygon")
+    if shape_type == "circle" and len(points) == 2:
+        (cx, cy), (px, py) = points
+        r = math.hypot(cx - px, cy - py)
+        return [cx - r, cy - r, cx + r, cy + r]
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    return [min(xs), min(ys), max(xs), max(ys)]
+
+
+def _bbox_iou(box1, box2):
+    x1 = max(box1[0], box2[0])
+    y1 = max(box1[1], box2[1])
+    x2 = min(box1[2], box2[2])
+    y2 = min(box1[3], box2[3])
+    inter_w = max(0.0, x2 - x1)
+    inter_h = max(0.0, y2 - y1)
+    inter_area = inter_w * inter_h
+    if inter_area <= 0:
+        return 0.0
+    area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
+    area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
+    return inter_area / (area1 + area2 - inter_area)
+
+
+def _has_overlap(shapes, threshold):
+    bboxes = []
+    labels = []
+    for s in shapes:
+        bbox = _bbox_from_shape(s)
+        if bbox is None:
+            continue
+        bboxes.append(bbox)
+        labels.append(s.get("label", ""))
+    for i in range(len(bboxes)):
+        for j in range(i + 1, len(bboxes)):
+            if labels[i] == labels[j]:
+                continue
+            if _bbox_iou(bboxes[i], bboxes[j]) >= threshold:
+                return True
+    return False
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -148,12 +196,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.fileSearch = QtWidgets.QLineEdit()
         self.fileSearch.setPlaceholderText(self.tr("Search Filename"))
         self.fileSearch.textChanged.connect(self.fileSearchChanged)
+
+        self.iouFilter = _IouThresholdWidget()
+        self.applyIouFilterButton = QtWidgets.QPushButton(self.tr("Apply IoU filter"))
+        self.applyIouFilterButton.clicked.connect(self.applyIouFilter)
+        iouLayout = QtWidgets.QHBoxLayout()
+        iouLayout.setContentsMargins(0, 0, 0, 0)
+        iouLayout.addWidget(self.iouFilter)
+        iouLayout.addWidget(self.applyIouFilterButton)
+        iouWidget = QtWidgets.QWidget()
+        iouWidget.setLayout(iouLayout)
+
         self.fileListWidget = QtWidgets.QListWidget()
         self.fileListWidget.itemSelectionChanged.connect(self.fileSelectionChanged)
         fileListLayout = QtWidgets.QVBoxLayout()
         fileListLayout.setContentsMargins(0, 0, 0, 0)
         fileListLayout.setSpacing(0)
         fileListLayout.addWidget(self.fileSearch)
+        fileListLayout.addWidget(iouWidget)
         fileListLayout.addWidget(self.fileListWidget)
         self.file_dock = QtWidgets.QDockWidget(self.tr("File List"), self)
         self.file_dock.setObjectName("Files")
@@ -1242,13 +1302,13 @@ class MainWindow(QtWidgets.QMainWindow):
             shape: Shape = item.shape()  # type: ignore[no-redef]
 
             if edit_text:
-        shape.label = text
+                shape.label = text
             if edit_flags:
-        shape.flags = flags
+                shape.flags = flags
             if edit_group_id:
-        shape.group_id = group_id
+                shape.group_id = group_id
             if edit_description:
-        shape.description = description
+                shape.description = description
 
         self._update_shape_color(shape)
         if shape.group_id is None:
@@ -1271,6 +1331,55 @@ class MainWindow(QtWidgets.QMainWindow):
             self.lastOpenDir,
             pattern=self.fileSearch.text(),
             load=False,
+        )
+
+    def applyIouFilter(self):
+        threshold = self.iouFilter.get_value()
+        if threshold <= 0:
+            self.importDirImages(
+                self.lastOpenDir,
+                pattern=self.fileSearch.text(),
+                load=False,
+            )
+            return
+
+        progress = QtWidgets.QProgressDialog(
+            self.tr("Filtering..."),
+            self.tr("Abort"),
+            0,
+            self.fileListWidget.count(),
+            self,
+        )
+        progress.setWindowModality(Qt.WindowModal)
+
+        matched = []
+        for i in range(self.fileListWidget.count()):
+            progress.setValue(i)
+            if progress.wasCanceled():
+                break
+            filename = self.fileListWidget.item(i).text()
+            label_file = osp.splitext(filename)[0] + ".json"
+            if self.output_dir:
+                label_file = osp.join(self.output_dir, osp.basename(label_file))
+            if not QtCore.QFile.exists(label_file):
+                continue
+            try:
+                lf = LabelFile(label_file)
+            except Exception:
+                continue
+            if _has_overlap(lf.shapes, threshold):
+                matched.append(filename)
+            QtWidgets.QApplication.processEvents()
+        progress.setValue(self.fileListWidget.count())
+        progress.close()
+
+        self.fileListWidget.clear()
+        for filename in matched:
+            item = QtWidgets.QListWidgetItem(filename)
+            item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            self.fileListWidget.addItem(item)
+        self.status(
+            self.tr("%d files match IoU >= %.2f") % (len(matched), threshold)
         )
 
     def fileSelectionChanged(self):
@@ -2114,9 +2223,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.loadFile(next_filename)
 
         try:
-        if osp.exists(label_file):
-            os.remove(label_file)
-            logger.info("Label file is removed: {}".format(label_file))
+            if osp.exists(label_file):
+                os.remove(label_file)
+                logger.info("Label file is removed: {}".format(label_file))
                 self.modifiedLabelFiles.remove(os.path.basename(label_file))
         except Exception as err:
             logger.error("Error removing label file", exc_info=err)
