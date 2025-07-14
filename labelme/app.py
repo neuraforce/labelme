@@ -34,6 +34,7 @@ from labelme.widgets import LabelListWidgetItem
 from labelme.widgets import ToolBar
 from labelme.widgets import UniqueLabelQListWidget
 from labelme.widgets import ZoomWidget
+from labelme.widgets import ClassCountWidget
 from labelme.widgets.ai_prompt_widget import _IouThresholdWidget
 
 from . import utils
@@ -225,6 +226,10 @@ class MainWindow(QtWidgets.QMainWindow):
         fileListWidget = QtWidgets.QWidget()
         fileListWidget.setLayout(fileListLayout)
         self.file_dock.setWidget(fileListWidget)
+
+        # Widget showing number of cached instances per class
+        self.classCountWidget = ClassCountWidget()
+        self.classCountWidget.labelDoubleClicked.connect(self.filterByLabel)
 
         self.zoomWidget = ZoomWidget()
         self.setAcceptDrops(True)
@@ -897,6 +902,9 @@ class MainWindow(QtWidgets.QMainWindow):
         ai_prompt_action = QtWidgets.QWidgetAction(self)
         ai_prompt_action.setDefaultWidget(self._ai_prompt_widget)
 
+        class_count_action = QtWidgets.QWidgetAction(self)
+        class_count_action.setDefaultWidget(self.classCountWidget)
+
         self.tools = self.toolbar("Tools")
         self.actions.tool = (  # type: ignore[attr-defined]
             open_,
@@ -919,6 +927,8 @@ class MainWindow(QtWidgets.QMainWindow):
             selectAiModel,
             None,
             ai_prompt_action,
+            None,
+            class_count_action,
         )
 
         self.statusBar().showMessage(str(self.tr("%s started.")) % __appname__)  # type: ignore[union-attr]
@@ -981,6 +991,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.zoomWidget.valueChanged.connect(self.paintCanvas)
 
         self.populateModeActions()
+
+        # update class counts periodically
+        self._count_timer = QtCore.QTimer(self)
+        self._count_timer.setInterval(1000)
+        self._count_timer.timeout.connect(self._update_class_counts)
+        self._count_timer.start()
 
         # self.firstStart = True
         # if self.firstStart:
@@ -1433,6 +1449,29 @@ class MainWindow(QtWidgets.QMainWindow):
             self.tr("%d files match IoU >= %.2f") % (len(matched), threshold)
         )
 
+    def filterByLabel(self, label: str) -> None:
+        """Filter file list showing only images whose cached annotations
+        contain the given label."""
+        self.stop_background_caching()
+        matched: list[str] = []
+        for i in range(self.fileListWidget.count()):
+            filename = self.fileListWidget.item(i).text()
+            label_file = osp.splitext(filename)[0] + ".json"
+            if self.output_dir:
+                label_file = osp.join(self.output_dir, osp.basename(label_file))
+            shapes = self._label_cache.get(label_file)
+            if not shapes:
+                continue
+            if any(s.get("label") == label for s in shapes):
+                matched.append(filename)
+        self.fileListWidget.clear()
+        for f in matched:
+            item = QtWidgets.QListWidgetItem(f)
+            item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            self.fileListWidget.addItem(item)
+        self.start_background_caching()
+        self.status(self.tr("%d files contain %s") % (len(matched), label))
+
     def fileSelectionChanged(self):
         items = self.fileListWidget.selectedItems()
         if not items:
@@ -1519,6 +1558,20 @@ class MainWindow(QtWidgets.QMainWindow):
         elif self._config["default_shape_color"]:
             return self._config["default_shape_color"]
         return (0, 255, 0)
+
+    def _compute_label_counts(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for shapes in self._label_cache.values():
+            for s in shapes:
+                label = s.get("label")
+                if not label:
+                    continue
+                counts[label] = counts.get(label, 0) + 1
+        return counts
+
+    def _update_class_counts(self) -> None:
+        counts = self._compute_label_counts()
+        self.classCountWidget.set_counts(counts, self._get_rgb_by_label)
 
     def remLabels(self, shapes):
         for shape in shapes:
@@ -1989,6 +2042,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.mayContinue():
             event.ignore()
         self.stop_background_caching()
+        if hasattr(self, "_count_timer"):
+            self._count_timer.stop()
         self.settings.setValue("filename", self.filename if self.filename else "")
         self.settings.setValue("window/size", self.size())
         self.settings.setValue("window/position", self.pos())
