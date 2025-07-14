@@ -191,3 +191,22 @@ class LabelFile(object):
     @staticmethod
     def is_label_file(filename):
         return osp.splitext(filename)[1].lower() == LabelFile.suffix
+
+    @staticmethod
+    def load_shapes(filename):
+        """Load only the shapes from *filename* without reading image data."""
+        try:
+            with io.open(filename, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return [
+                dict(
+                    label=s.get("label"),
+                    points=s.get("points", []),
+                    group_id=s.get("group_id"),
+                    shape_type=s.get("shape_type", "polygon"),
+                    flags=s.get("flags", {}),
+                )
+                for s in data.get("shapes", [])
+            ]
+        except Exception as e:
+            raise LabelFileError(e)

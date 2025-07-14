@@ -144,6 +144,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._noSelectionSlot = False
 
         self._copied_shapes = None
+        # cache label file contents to avoid re-reading on filtering
+        self._label_cache = {}
 
         # Main widgets and related state.
         self.labelDialog = LabelDialog(
@@ -1364,10 +1366,13 @@ class MainWindow(QtWidgets.QMainWindow):
             if not QtCore.QFile.exists(label_file):
                 continue
             try:
-                lf = LabelFile(label_file)
+                shapes = self._label_cache.get(label_file)
+                if shapes is None:
+                    shapes = LabelFile.load_shapes(label_file)
+                    self._label_cache[label_file] = shapes
             except Exception:
                 continue
-            if _has_overlap(lf.shapes, threshold):
+            if _has_overlap(shapes, threshold):
                 matched.append(filename)
             QtWidgets.QApplication.processEvents()
         progress.setValue(self.fileListWidget.count())

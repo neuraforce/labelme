@@ -32,3 +32,22 @@ def test_load_corrects_height_width(tmp_path: Path):
     lf = LabelFile(str(json_path))
     assert lf.imageHeight == 10
     assert lf.imageWidth == 20
+
+
+def test_load_shapes(tmp_path: Path):
+    data = {
+        "shapes": [
+            {
+                "label": "cat",
+                "points": [[0, 0], [1, 1]],
+                "shape_type": "rectangle",
+            }
+        ]
+    }
+    json_path = tmp_path / "ann.json"
+    with open(json_path, "w") as f:
+        json.dump(data, f)
+
+    shapes = LabelFile.load_shapes(str(json_path))
+    assert shapes[0]["label"] == "cat"
+    assert shapes[0]["points"] == [[0, 0], [1, 1]]
