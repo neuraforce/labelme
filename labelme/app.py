@@ -1590,7 +1590,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _compute_label_counts(self) -> dict[str, int]:
         counts: dict[str, int] = {}
-        for shapes in self._label_cache.values():
+        # Make a copy of the cached shapes to prevent 'dictionary changed size'
+        # errors when the cache is mutated from background threads.
+        for shapes in list(self._label_cache.values()):
             for s in shapes:
                 label = s.get("label")
                 if not label:
