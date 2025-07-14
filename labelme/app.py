@@ -233,6 +233,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # Widget showing number of cached instances per class
         self.classCountWidget = ClassCountWidget()
         self.classCountWidget.labelDoubleClicked.connect(self.filterByLabel)
+        self.class_count_dock = QtWidgets.QDockWidget(
+            self.tr("Class Counts"), self
+        )
+        self.class_count_dock.setObjectName("Class Counts")
+        self.class_count_dock.setWidget(self.classCountWidget)
 
         self.zoomWidget = ZoomWidget()
         self.setAcceptDrops(True)
@@ -266,7 +271,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(scrollArea)
 
         features = QtWidgets.QDockWidget.DockWidgetFeatures()
-        for dock in ["flag_dock", "label_dock", "shape_dock", "file_dock"]:
+        for dock in [
+            "flag_dock",
+            "label_dock",
+            "shape_dock",
+            "file_dock",
+            "class_count_dock",
+        ]:
             if self._config[dock]["closable"]:
                 features = features | QtWidgets.QDockWidget.DockWidgetClosable
             if self._config[dock]["floatable"]:
@@ -281,6 +292,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.addDockWidget(Qt.RightDockWidgetArea, self.label_dock)  # type: ignore[attr-defined]
         self.addDockWidget(Qt.RightDockWidgetArea, self.shape_dock)  # type: ignore[attr-defined]
         self.addDockWidget(Qt.RightDockWidgetArea, self.file_dock)  # type: ignore[attr-defined]
+        self.addDockWidget(
+            Qt.RightDockWidgetArea, self.class_count_dock
+        )  # type: ignore[attr-defined]
 
         # Actions
         action = functools.partial(utils.newAction, self)
@@ -831,6 +845,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.label_dock.toggleViewAction(),
                 self.shape_dock.toggleViewAction(),
                 self.file_dock.toggleViewAction(),
+                self.class_count_dock.toggleViewAction(),
                 None,
                 fill_drawing,
                 None,
@@ -906,9 +921,6 @@ class MainWindow(QtWidgets.QMainWindow):
         ai_prompt_action = QtWidgets.QWidgetAction(self)
         ai_prompt_action.setDefaultWidget(self._ai_prompt_widget)
 
-        class_count_action = QtWidgets.QWidgetAction(self)
-        class_count_action.setDefaultWidget(self.classCountWidget)
-
         self.tools = self.toolbar("Tools")
         self.actions.tool = (  # type: ignore[attr-defined]
             open_,
@@ -932,7 +944,6 @@ class MainWindow(QtWidgets.QMainWindow):
             None,
             ai_prompt_action,
             None,
-            class_count_action,
         )
 
         self.statusBar().showMessage(str(self.tr("%s started.")) % __appname__)  # type: ignore[union-attr]
