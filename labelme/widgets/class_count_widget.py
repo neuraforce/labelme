@@ -1,4 +1,8 @@
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtCore
+from PyQt5 import QtGui
+from PyQt5 import QtWidgets
+
+DEFAULT_HEIGHT = 150
 
 
 class ClassCountWidget(QtWidgets.QListWidget):
@@ -10,7 +14,14 @@ class ClassCountWidget(QtWidgets.QListWidget):
         super().__init__(parent)
         self.itemDoubleClicked.connect(self._emit_label)
         self.setMinimumWidth(120)
-        self.setMaximumHeight(60)
+        # allow the dock to be resized vertically and provide a larger default
+        # height via ``sizeHint``.
+
+    def sizeHint(self) -> QtCore.QSize:
+        hint = super().sizeHint()
+        if hint.height() < DEFAULT_HEIGHT:
+            hint.setHeight(DEFAULT_HEIGHT)
+        return hint
 
     def _emit_label(self, item: QtWidgets.QListWidgetItem) -> None:
         label = item.data(QtCore.Qt.UserRole)
