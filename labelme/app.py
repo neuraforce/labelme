@@ -1395,6 +1395,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self,
         )
         progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setFixedWidth(600)
 
         matched = []
         for i in range(self.fileListWidget.count()):
@@ -1408,10 +1410,11 @@ class MainWindow(QtWidgets.QMainWindow):
             if not QtCore.QFile.exists(label_file):
                 continue
             try:
-                shapes = self._label_cache.get(label_file)
-                if shapes is None:
+                if label_file not in self._label_cache:
                     shapes = LabelFile.load_shapes(label_file)
                     self._label_cache[label_file] = shapes
+                else:
+                    shapes = self._label_cache[label_file]
             except Exception:
                 continue
             if _has_overlap(shapes, threshold):
