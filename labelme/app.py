@@ -1742,6 +1742,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
             # disable allows next and previous image to proceed
             # self.filename = filename
+            # update cache and class counts after saving
+            self._label_cache[filename] = shapes
+            self._update_class_counts()
             return True
         except LabelFileError as e:
             self.errorMessage(
@@ -2340,7 +2343,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if filename and self.saveLabels(filename):
             self.addRecentFile(filename)
             self.setClean()
-            self._label_cache.pop(filename, None)
+
 
     def closeFile(self, _value=False):
         if not self.mayContinue():
