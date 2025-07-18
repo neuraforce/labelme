@@ -38,6 +38,13 @@ dependencies = [
   "scikit-image",
 ]
 
+[project.optional-dependencies]
+# Packages required for the YOLO object detection feature.
+yolo = [
+  "ultralytics",
+  "onnxruntime",
+]
+
 [tool.hatch.metadata.hooks.fancy-pypi-readme]
 content-type = "text/markdown"
 fragments = [{ path = "README.md" }]

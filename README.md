@@ -150,6 +150,10 @@ steps using a virtual environment:
 build_windows_exe.bat
 ```
 
+If you need the YOLO detection feature in the executable, make sure that
+`ultralytics` and `onnxruntime` are installed. The bundled build script installs
+them automatically via `pip install .[yolo]`.
+
 ## Improvements by neuraforce
 
 - Track modified files and color them blue
@@ -158,6 +162,7 @@ build_windows_exe.bat
 - Add functionality to reload folder and check for new files
 - Add functionality to automatically select next unlabelled item
 - Menu bar: Create rectangles by default (not polygons)
+- Optional object detection via Ultralytics YOLO (install with `pip install labelme[yolo]`)
 
 ## Bugfixes by neuraforce
 
