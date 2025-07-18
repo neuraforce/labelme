@@ -8,6 +8,10 @@ from PyQt5 import QtCore
 from PyQt5 import QtGui
 from PyQt5 import QtWidgets
 
+import labelme.utils
+from labelme._automation import polygon_from_mask
+from labelme.shape import Shape
+
 # Make osam optional
 OSAM_AVAILABLE = False
 try:
@@ -41,10 +45,6 @@ except ImportError:
     # If osam is not available, use the dummy implementation
     if not OSAM_AVAILABLE:
         osam = DummyOsam()
-
-import labelme.utils
-from labelme._automation import polygon_from_mask
-from labelme.shape import Shape
 
 # TODO(unknown):
 # - [maybe] Find optimal epsilon value.

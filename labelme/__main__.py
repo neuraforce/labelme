@@ -181,6 +181,11 @@ def main():
         help="epsilon to find nearest vertex on canvas",
         default=argparse.SUPPRESS,
     )
+    parser.add_argument(
+        "--detector",
+        help="path to an Ultralytics YOLO model (.pt)",
+        default=argparse.SUPPRESS,
+    )
     args = parser.parse_args()
 
     if args.version:
@@ -217,6 +222,7 @@ def main():
     reset_config = config_from_args.pop("reset_config")
     filename = config_from_args.pop("filename")
     output = config_from_args.pop("output")
+    detector_model = config_from_args.pop("detector", None)
     config_file_or_yaml = config_from_args.pop("config")
     config = get_config(config_file_or_yaml, config_from_args)
 
@@ -250,6 +256,7 @@ def main():
         filename=filename,
         output_file=output_file,
         output_dir=output_dir,
+        detector=detector_model,
     )
 
     if reset_config:
