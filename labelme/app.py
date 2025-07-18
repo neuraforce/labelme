@@ -1538,6 +1538,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if filename:
                 self.loadFile(filename)
                 self._update_class_counts()
+                self._update_file_dock_title()
 
     # React to canvas signals.
     def shapeSelectionChanged(self, selected_shapes):
@@ -1630,7 +1631,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _update_file_dock_title(self) -> None:
         count = self.fileListWidget.count()
-        self.file_dock.setWindowTitle(self.tr("File List (%d)") % count)
+        unannotated = 0
+        for i in range(count):
+            item = self.fileListWidget.item(i)
+            if item and item.checkState() == Qt.Unchecked:
+                unannotated += 1
+        self.file_dock.setWindowTitle(
+            self.tr("File List (%d, %d unannotated)") % (count, unannotated)
+        )
 
     def remLabels(self, shapes):
         for shape in shapes:
