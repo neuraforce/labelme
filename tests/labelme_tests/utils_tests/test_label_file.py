@@ -1,7 +1,8 @@
 import base64
 import json
-import numpy as np
 from pathlib import Path
+
+import numpy as np
 import PIL.Image
 
 from labelme.label_file import LabelFile

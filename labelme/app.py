@@ -106,6 +106,7 @@ class MainWindow(QtWidgets.QMainWindow):
         output=None,
         output_file=None,
         output_dir=None,
+        detector=None,
     ):
         if output is not None:
             logger.warning("argument output is deprecated, use output_file instead")
@@ -136,6 +137,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Set point size from config file
         Shape.point_size = self._config["shape"]["point_size"]
+
+        self._detector_model_path = detector
+        self._detector = None
 
         super(MainWindow, self).__init__()
         self.setWindowTitle(__appname__)
@@ -374,6 +378,17 @@ class MainWindow(QtWidgets.QMainWindow):
             self.tr("Delete current label file and image"),
             enabled=True,
         )
+
+        detect_action = None
+        if self._detector_model_path is not None:
+            detect_action = action(
+                self.tr("Detect"),
+                self.detectObjects,
+                None,
+                "objects",
+                self.tr("Run object detector"),
+                enabled=False,
+            )
 
         changeOutputDir = action(
             self.tr("&Change Output Dir"),
@@ -718,6 +733,7 @@ class MainWindow(QtWidgets.QMainWindow):
             open=open_,
             close=close,
             deleteFile=deleteFile,
+            detect=detect_action,
             toggleKeepPrevMode=toggle_keep_prev_mode,
             delete=delete,
             edit=edit,
@@ -798,6 +814,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 createAiMaskMode,
                 editMode,
                 brightnessContrast,
+                *( [detect_action] if detect_action else [] ),
             ),
             onShapesPresent=(saveAs, hideAll, showAll, toggleAll),
         )
@@ -919,29 +936,36 @@ class MainWindow(QtWidgets.QMainWindow):
         ai_prompt_action.setDefaultWidget(self._ai_prompt_widget)
 
         self.tools = self.toolbar("Tools")
-        self.actions.tool = (  # type: ignore[attr-defined]
+        tool_actions = [
             open_,
             opendir,
             openPrevImg,
             openNextImg,
             save,
             deleteFile,
-            None,
-            createRectangleMode,
-            editMode,
-            duplicate,
-            delete,
-            undo,
-            brightnessContrast,
-            None,
-            fitWindow,
-            zoom,
-            None,
-            selectAiModel,
-            None,
-            ai_prompt_action,
-            None,
+        ]
+        if detect_action:
+            tool_actions.append(detect_action)
+        tool_actions.extend(
+            [
+                None,
+                createRectangleMode,
+                editMode,
+                duplicate,
+                delete,
+                undo,
+                brightnessContrast,
+                None,
+                fitWindow,
+                zoom,
+                None,
+                selectAiModel,
+                None,
+                ai_prompt_action,
+                None,
+            ]
         )
+        self.actions.tool = tuple(tool_actions)  # type: ignore[attr-defined]
 
         self.statusBar().showMessage(str(self.tr("%s started.")) % __appname__)  # type: ignore[union-attr]
         self.statusBar().show()  # type: ignore[union-attr]
@@ -1201,6 +1225,57 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.storeShapes()
         self.loadShapes(shapes, replace=False)
         self.setDirty()
+
+    def _rectangle_exists(
+        self, label: str, p1: tuple[float, float], p2: tuple[float, float]
+    ) -> bool:
+        x1, y1 = min(p1[0], p2[0]), min(p1[1], p2[1])
+        x2, y2 = max(p1[0], p2[0]), max(p1[1], p2[1])
+        for shape in self.canvas.shapes:
+            if shape.shape_type != "rectangle" or shape.label != label:
+                continue
+            sp1 = shape.points[0]
+            sp2 = shape.points[1]
+            sx1, sy1 = min(sp1.x(), sp2.x()), min(sp1.y(), sp2.y())
+            sx2, sy2 = max(sp1.x(), sp2.x()), max(sp1.y(), sp2.y())
+            if (
+                abs(sx1 - x1) < 1e-2
+                and abs(sy1 - y1) < 1e-2
+                and abs(sx2 - x2) < 1e-2
+                and abs(sy2 - y2) < 1e-2
+            ):
+                return True
+        return False
+
+    def detectObjects(self) -> None:
+        if self._detector_model_path is None or self.image.isNull():
+            return
+        if self._detector is None:
+            from ultralytics import YOLO
+
+            self._detector = YOLO(self._detector_model_path)
+
+        img = utils.img_qt_to_arr(self.image)[:, :, :3]
+        results = self._detector.predict(img, conf=0.5, iou=0.35, verbose=False)
+        res = results[0]
+        boxes = res.boxes.xyxy.cpu().numpy()
+        classes = res.boxes.cls.cpu().numpy().astype(int)
+        names = res.names
+        shapes: list[Shape] = []
+        for box, cls_id in zip(boxes, classes):
+            label = names[int(cls_id)]
+            p1 = (float(box[0]), float(box[1]))
+            p2 = (float(box[2]), float(box[3]))
+            if self._rectangle_exists(label, p1, p2):
+                continue
+            shape = Shape(label=label, shape_type="rectangle")
+            shape.addPoint(QtCore.QPointF(*p1))
+            shape.addPoint(QtCore.QPointF(*p2))
+            shapes.append(shape)
+        if shapes:
+            self.canvas.storeShapes()
+            self.loadShapes(shapes, replace=False)
+            self.setDirty()
 
     def resetState(self):
         self.labelList.clear()
