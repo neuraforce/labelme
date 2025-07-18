@@ -186,6 +186,20 @@ def main():
         help="path to an Ultralytics YOLO model (.pt)",
         default=argparse.SUPPRESS,
     )
+    parser.add_argument(
+        "--detector-conf",
+        dest="detector_conf",
+        type=float,
+        help="object detector confidence threshold",
+        default=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--detector-iou",
+        dest="detector_iou",
+        type=float,
+        help="object detector IoU threshold",
+        default=argparse.SUPPRESS,
+    )
     args = parser.parse_args()
 
     if args.version:
@@ -223,8 +237,16 @@ def main():
     filename = config_from_args.pop("filename")
     output = config_from_args.pop("output")
     detector_model = config_from_args.pop("detector", None)
+    detector_conf = config_from_args.pop("detector_conf", None)
+    detector_iou = config_from_args.pop("detector_iou", None)
     config_file_or_yaml = config_from_args.pop("config")
     config = get_config(config_file_or_yaml, config_from_args)
+    if detector_model is not None:
+        config["detector_model"] = detector_model
+    if detector_conf is not None:
+        config["detector_conf_threshold"] = detector_conf
+    if detector_iou is not None:
+        config["detector_iou_threshold"] = detector_iou
 
     if not config["labels"] and config["validate_label"]:
         logger.error(
@@ -256,7 +278,7 @@ def main():
         filename=filename,
         output_file=output_file,
         output_dir=output_dir,
-        detector=detector_model,
+        detector=config.get("detector_model"),
     )
 
     if reset_config:

@@ -33,6 +33,10 @@ shape:
 ai:
   default: 'Sam2 (balanced)'
 
+detector_model: null
+detector_conf_threshold: 0.5
+detector_iou_threshold: 0.35
+
 # main
 flag_dock:
   show: true

@@ -1256,7 +1256,12 @@ class MainWindow(QtWidgets.QMainWindow):
             self._detector = YOLO(self._detector_model_path)
 
         img = utils.img_qt_to_arr(self.image)[:, :, :3]
-        results = self._detector.predict(img, conf=0.5, iou=0.35, verbose=False)
+        results = self._detector.predict(
+            img,
+            conf=self._config["detector_conf_threshold"],
+            iou=self._config["detector_iou_threshold"],
+            verbose=False,
+        )
         res = results[0]
         boxes = res.boxes.xyxy.cpu().numpy()
         classes = res.boxes.cls.cpu().numpy().astype(int)
