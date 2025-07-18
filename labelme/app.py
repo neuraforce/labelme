@@ -384,7 +384,7 @@ class MainWindow(QtWidgets.QMainWindow):
             detect_action = action(
                 self.tr("Detect"),
                 self.detectObjects,
-                None,
+                shortcuts["detect"],
                 "objects",
                 self.tr("Run object detector"),
                 enabled=False,
@@ -814,7 +814,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 createAiMaskMode,
                 editMode,
                 brightnessContrast,
-                *( [detect_action] if detect_action else [] ),
+                *([detect_action] if detect_action else []),
             ),
             onShapesPresent=(saveAs, hideAll, showAll, toggleAll),
         )
@@ -1251,7 +1251,16 @@ class MainWindow(QtWidgets.QMainWindow):
         if self._detector_model_path is None or self.image.isNull():
             return
         if self._detector is None:
-            from ultralytics import YOLO
+            try:
+                from ultralytics import YOLO
+            except ModuleNotFoundError:
+                QtWidgets.QMessageBox.critical(
+                    self,
+                    self.tr("Detection Error"),
+                    self.tr("'ultralytics' package is not installed."),
+                )
+                logger.exception("ultralytics is not installed")
+                return
 
             self._detector = YOLO(self._detector_model_path)
 
