@@ -151,6 +151,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._stop_background_cache = threading.Event()
         self._background_cache_thread = None
         self._current_label_filter: str | None = None
+        self._iou_filter_applied = False
 
         # Main widgets and related state.
         self.labelDialog = LabelDialog(
@@ -1411,6 +1412,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def applyIouFilter(self):
         threshold = self.iouFilter.get_value()
+        self._iou_filter_applied = threshold > 0
         self.stop_background_caching()
         if threshold <= 0:
             self.importDirImages(
@@ -1468,6 +1470,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def clearIouFilter(self) -> None:
         self.iouFilter.set_value(0)
+        self._iou_filter_applied = False
         self.clear_label_filter()
         self.importDirImages(
             self.lastOpenDir,
@@ -1489,7 +1492,7 @@ class MainWindow(QtWidgets.QMainWindow):
             pattern=self.fileSearch.text(),
             load=False,
         )
-        if self.iouFilter.get_value() > 0:
+        if self._iou_filter_applied:
             self.applyIouFilter()
         matched: list[str] = []
         for i in range(self.fileListWidget.count()):
@@ -2343,7 +2346,6 @@ class MainWindow(QtWidgets.QMainWindow):
         if filename and self.saveLabels(filename):
             self.addRecentFile(filename)
             self.setClean()
-
 
     def closeFile(self, _value=False):
         if not self.mayContinue():
