@@ -1250,10 +1250,24 @@ class MainWindow(QtWidgets.QMainWindow):
     def detectObjects(self) -> None:
         if self._detector_model_path is None or self.image.isNull():
             return
+        progress = QtWidgets.QProgressDialog(
+            self.tr("Loading detector..."),
+            None,
+            0,
+            0,
+            self,
+        )
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setCancelButton(None)
+        progress.show()
+        QtWidgets.QApplication.processEvents()
+
         if self._detector is None:
             try:
                 from ultralytics import YOLO
             except ModuleNotFoundError:
+                progress.close()
                 QtWidgets.QMessageBox.critical(
                     self,
                     self.tr("Detection Error"),
@@ -1264,6 +1278,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self._detector = YOLO(self._detector_model_path)
 
+        progress.setLabelText(self.tr("Detecting objects..."))
+        QtWidgets.QApplication.processEvents()
+
         img = utils.img_qt_to_arr(self.image)[:, :, :3]
         results = self._detector.predict(
             img,
@@ -1271,6 +1288,8 @@ class MainWindow(QtWidgets.QMainWindow):
             iou=self._config["detector_iou_threshold"],
             verbose=False,
         )
+
+        progress.close()
         res = results[0]
         boxes = res.boxes.xyxy.cpu().numpy()
         classes = res.boxes.cls.cpu().numpy().astype(int)
