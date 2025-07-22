@@ -13,6 +13,7 @@ import imgviz
 import natsort
 import numpy as np
 from loguru import logger
+from PIL import Image
 from PyQt5 import QtCore
 from PyQt5 import QtGui
 from PyQt5 import QtWidgets
@@ -76,6 +77,49 @@ def _bbox_iou(box1, box2):
     area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
     area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
     return inter_area / (area1 + area2 - inter_area)
+
+
+def _nms_boxes(
+    boxes: np.ndarray,
+    scores: np.ndarray,
+    classes: np.ndarray,
+    iou_threshold: float,
+) -> list[int]:
+    """Simple per-class NMS returning kept indices."""
+    if len(boxes) == 0:
+        return []
+
+    keep: list[int] = []
+    for cls in np.unique(classes):
+        cls_indices = np.where(classes == cls)[0]
+        if cls_indices.size == 0:
+            continue
+
+        cls_boxes = boxes[cls_indices]
+        cls_scores = scores[cls_indices]
+        x1 = cls_boxes[:, 0]
+        y1 = cls_boxes[:, 1]
+        x2 = cls_boxes[:, 2]
+        y2 = cls_boxes[:, 3]
+        areas = (x2 - x1) * (y2 - y1)
+        order = cls_scores.argsort()[::-1]
+        while order.size > 0:
+            i = int(order[0])
+            keep.append(cls_indices[i])
+            xx1 = np.maximum(x1[i], x1[order[1:]])
+            yy1 = np.maximum(y1[i], y1[order[1:]])
+            xx2 = np.minimum(x2[i], x2[order[1:]])
+            yy2 = np.minimum(y2[i], y2[order[1:]])
+            w = np.maximum(0.0, xx2 - xx1)
+            h = np.maximum(0.0, yy2 - yy1)
+            inter = w * h
+            iou = inter / (areas[i] + areas[order[1:]] - inter)
+            inds = np.where(iou <= iou_threshold)[0]
+            order = order[inds + 1]
+
+    # Preserve overall score order
+    keep.sort(key=lambda idx: scores[idx], reverse=True)
+    return keep
 
 
 def _has_overlap(shapes, threshold):
@@ -1282,18 +1326,60 @@ class MainWindow(QtWidgets.QMainWindow):
         QtWidgets.QApplication.processEvents()
 
         img = utils.img_qt_to_arr(self.image)[:, :, :3]
-        results = self._detector.predict(
-            img,
-            conf=self._config["detector_conf_threshold"],
-            iou=self._config["detector_iou_threshold"],
-            verbose=False,
-        )
+        # QImage returns BGR; convert to RGB for Ultralytics
+        img = img[..., ::-1]
 
+        scales = self._config.get("detector_scales", [1.0])
+        boxes_list: list[np.ndarray] = []
+        scores_list: list[np.ndarray] = []
+        classes_list: list[np.ndarray] = []
+        names = None
+        for scale in scales:
+            if scale != 1.0:
+                pil_img = Image.fromarray(img)
+                resized = pil_img.resize(
+                    (int(img.shape[1] * scale), int(img.shape[0] * scale)),
+                    Image.BILINEAR,
+                )
+                arr = np.asarray(resized)
+            else:
+                arr = img
+            results = self._detector.predict(
+                arr,
+                conf=self._config["detector_conf_threshold"],
+                iou=self._config["detector_iou_threshold"],
+                verbose=False,
+            )
+            res = results[0]
+            names = res.names
+            boxes = res.boxes.xyxy.cpu().numpy()
+            scores = res.boxes.conf.cpu().numpy()
+            classes = res.boxes.cls.cpu().numpy().astype(int)
+            if scale != 1.0:
+                boxes /= scale
+            boxes_list.append(boxes)
+            scores_list.append(scores)
+            classes_list.append(classes)
         progress.close()
-        res = results[0]
-        boxes = res.boxes.xyxy.cpu().numpy()
-        classes = res.boxes.cls.cpu().numpy().astype(int)
-        names = res.names
+
+        if boxes_list:
+            boxes = np.concatenate(boxes_list, axis=0)
+            scores = np.concatenate(scores_list, axis=0)
+            classes = np.concatenate(classes_list, axis=0)
+        else:
+            boxes = np.empty((0, 4), dtype=np.float32)
+            scores = np.empty((0,), dtype=np.float32)
+            classes = np.empty((0,), dtype=int)
+
+        keep = _nms_boxes(
+            boxes,
+            scores,
+            classes,
+            self._config["detector_iou_threshold"],
+        )
+        boxes = boxes[keep]
+        classes = classes[keep]
+
         shapes: list[Shape] = []
         for box, cls_id in zip(boxes, classes):
             label = names[int(cls_id)]
