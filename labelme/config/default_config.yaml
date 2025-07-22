@@ -36,6 +36,11 @@ ai:
 detector_model: null
 detector_conf_threshold: 0.5
 detector_iou_threshold: 0.35
+detector_scales:
+  - 0.5
+  - 1.0
+  - 1.5
+  - 2.0
 
 # main
 flag_dock:
