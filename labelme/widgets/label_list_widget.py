@@ -181,3 +181,24 @@ class LabelListWidget(QtWidgets.QListView):
 
     def clear(self):
         self._model.clear()  # type: ignore[union-attr]
+
+    def moveSelectedRowsUp(self) -> None:
+        indexes = sorted(self.selectedIndexes(), key=lambda i: i.row())
+        for index in indexes:
+            row = index.row()
+            if row == 0:
+                continue
+            self._model.insertRow(row - 1, self._model.takeRow(row))
+        if indexes:
+            self.itemDropped.emit()
+
+    def moveSelectedRowsDown(self) -> None:
+        indexes = sorted(self.selectedIndexes(), key=lambda i: i.row(), reverse=True)
+        row_count = self._model.rowCount()
+        for index in indexes:
+            row = index.row()
+            if row >= row_count - 1:
+                continue
+            self._model.insertRow(row + 1, self._model.takeRow(row))
+        if indexes:
+            self.itemDropped.emit()

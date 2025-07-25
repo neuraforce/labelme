@@ -567,6 +567,22 @@ class MainWindow(QtWidgets.QMainWindow):
             self.tr("Create a duplicate of the selected polygons"),
             enabled=False,
         )
+        moveUp = action(
+            self.tr("Move up"),
+            self.moveLabelUp,
+            None,
+            "prev",
+            self.tr("Move selected shape up"),
+            enabled=False,
+        )
+        moveDown = action(
+            self.tr("Move down"),
+            self.moveLabelDown,
+            None,
+            "next",
+            self.tr("Move selected shape down"),
+            enabled=False,
+        )
         copy = action(
             self.tr("Copy Polygons"),
             self.copySelectedShape,
@@ -782,6 +798,8 @@ class MainWindow(QtWidgets.QMainWindow):
             delete=delete,
             edit=edit,
             duplicate=duplicate,
+            moveUp=moveUp,
+            moveDown=moveDown,
             copy=copy,
             paste=paste,
             undoLastPoint=undoLastPoint,
@@ -815,6 +833,8 @@ class MainWindow(QtWidgets.QMainWindow):
             editMenu=(
                 edit,
                 duplicate,
+                moveUp,
+                moveDown,
                 copy,
                 paste,
                 delete,
@@ -996,6 +1016,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 createRectangleMode,
                 editMode,
                 duplicate,
+                moveUp,
+                moveDown,
                 delete,
                 undo,
                 brightnessContrast,
@@ -1752,6 +1774,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.actions.duplicate.setEnabled(n_selected)  # type: ignore[attr-defined]
         self.actions.copy.setEnabled(n_selected)  # type: ignore[attr-defined]
         self.actions.edit.setEnabled(n_selected)  # type: ignore[attr-defined]
+        self.actions.moveUp.setEnabled(n_selected)  # type: ignore[attr-defined]
+        self.actions.moveDown.setEnabled(n_selected)  # type: ignore[attr-defined]
 
     def addLabel(self, shape):
         if shape.group_id is None:
@@ -2691,6 +2715,14 @@ class MainWindow(QtWidgets.QMainWindow):
     def moveShape(self):
         self.canvas.endMove(copy=False)
         self.setDirty()
+
+    def moveLabelUp(self) -> None:
+        self.labelList.moveSelectedRowsUp()
+        self.labelOrderChanged()
+
+    def moveLabelDown(self) -> None:
+        self.labelList.moveSelectedRowsDown()
+        self.labelOrderChanged()
 
     def openDirDialog(self, _value=False, dirpath=None):
         if not self.mayContinue():
