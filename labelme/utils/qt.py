@@ -14,6 +14,19 @@ def newIcon(icon):
     return QtGui.QIcon(osp.join(":/", icons_dir, "%s.png" % icon))
 
 
+def emojiIcon(text: str) -> QtGui.QIcon:
+    """Create an icon containing the given emoji text."""
+    pixmap = QtGui.QPixmap(32, 32)
+    pixmap.fill(QtCore.Qt.transparent)
+    painter = QtGui.QPainter(pixmap)
+    font = QtGui.QFont()
+    font.setPixelSize(20)
+    painter.setFont(font)
+    painter.drawText(pixmap.rect(), QtCore.Qt.AlignCenter, text)
+    painter.end()
+    return QtGui.QIcon(pixmap)
+
+
 def newButton(text, icon=None, slot=None):
     b = QtWidgets.QPushButton(text)
     if icon is not None:

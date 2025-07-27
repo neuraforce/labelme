@@ -738,6 +738,26 @@ class MainWindow(QtWidgets.QMainWindow):
             self.tr("Adjust brightness and contrast"),
             enabled=False,
         )
+        rotateLeft = action(
+            self.tr("Rotate &Left"),
+            functools.partial(self.rotateImage, False),
+            None,
+            None,
+            self.tr("Rotate image and annotations left"),
+            enabled=False,
+        )
+        rotateLeft.setIconText("↺")
+        rotateLeft.setIcon(utils.emojiIcon("↺"))
+        rotateRight = action(
+            self.tr("Rotate &Right"),
+            functools.partial(self.rotateImage, True),
+            None,
+            None,
+            self.tr("Rotate image and annotations right"),
+            enabled=False,
+        )
+        rotateRight.setIconText("↻")
+        rotateRight.setIcon(utils.emojiIcon("↻"))
         # Group zoom controls into a list for easier toggling.
         zoomActions = (
             self.zoomWidget,
@@ -822,6 +842,8 @@ class MainWindow(QtWidgets.QMainWindow):
             fitWindow=fitWindow,
             fitWidth=fitWidth,
             brightnessContrast=brightnessContrast,
+            rotateLeft=rotateLeft,
+            rotateRight=rotateRight,
             zoomActions=zoomActions,
             openNextImg=openNextImg,
             openNextBlankImg=openNextBlankImg,
@@ -877,6 +899,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 createAiPolygonMode,
                 createAiMaskMode,
                 editMode,
+                rotateLeft,
+                rotateRight,
                 brightnessContrast,
                 *([detect_action] if detect_action else []),
             ),
@@ -940,6 +964,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 fitWidth,
                 None,
                 brightnessContrast,
+                rotateLeft,
+                rotateRight,
             ),
         )
 
@@ -1021,6 +1047,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 delete,
                 undo,
                 brightnessContrast,
+                rotateLeft,
+                rotateRight,
                 None,
                 fitWindow,
                 zoom,
@@ -2147,6 +2175,37 @@ class MainWindow(QtWidgets.QMainWindow):
         brightness = dialog.slider_brightness.value()
         contrast = dialog.slider_contrast.value()
         self.brightnessContrast_values[self.filename] = (brightness, contrast)
+
+    def rotateImage(self, clockwise: bool) -> None:
+        """Rotate the current image and annotations."""
+        if self.image.isNull():
+            return
+        w, h = self.image.width(), self.image.height()
+        img_arr = utils.img_qt_to_arr(self.image)
+        k = -1 if clockwise else 1
+        img_arr = np.rot90(img_arr, k)
+        self.imageData = utils.img_arr_to_data(img_arr)
+        self.image = QtGui.QImage.fromData(self.imageData)
+
+        for item in self.labelList:
+            shape = item.shape()
+            if shape.mask is not None:
+                shape.mask = np.rot90(shape.mask, k)
+            for pt in shape.points:
+                x, y = pt.x(), pt.y()
+                if clockwise:
+                    pt.setX(h - y)
+                    pt.setY(x)
+                else:
+                    pt.setX(y)
+                    pt.setY(w - x)
+
+        self.canvas.loadPixmap(QtGui.QPixmap.fromImage(self.image), clear_shapes=False)
+        self.canvas.storeShapes()
+        self.paintCanvas()
+        self.image.save(self.imagePath)
+        self.setDirty()
+        self.saveFile()
 
     def togglePolygons(self, value):
         flag = value
