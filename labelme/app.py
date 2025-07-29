@@ -571,7 +571,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.tr("Move up"),
             self.moveLabelUp,
             None,
-            "prev",
+            "up",
             self.tr("Move selected shape up"),
             enabled=False,
         )
@@ -579,7 +579,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.tr("Move down"),
             self.moveLabelDown,
             None,
-            "next",
+            "down",
             self.tr("Move selected shape down"),
             enabled=False,
         )
@@ -742,22 +742,18 @@ class MainWindow(QtWidgets.QMainWindow):
             self.tr("Rotate &Left"),
             functools.partial(self.rotateImage, False),
             None,
-            None,
+            "rotate-left",
             self.tr("Rotate image and annotations left"),
             enabled=False,
         )
-        rotateLeft.setIconText("↺")
-        rotateLeft.setIcon(utils.emojiIcon("↺"))
         rotateRight = action(
             self.tr("Rotate &Right"),
             functools.partial(self.rotateImage, True),
             None,
-            None,
+            "rotate-right",
             self.tr("Rotate image and annotations right"),
             enabled=False,
         )
-        rotateRight.setIconText("↻")
-        rotateRight.setIcon(utils.emojiIcon("↻"))
         # Group zoom controls into a list for easier toggling.
         zoomActions = (
             self.zoomWidget,
