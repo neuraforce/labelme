@@ -2177,7 +2177,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.image.isNull():
             return
         w, h = self.image.width(), self.image.height()
-        img_arr = utils.img_qt_to_arr(self.image)
+        # Qt's internal image format may use BGR channel order. Convert to
+        # RGB before extracting the numpy array to prevent channel swapping
+        # when the image is rotated and saved back.
+        image = self.image.convertToFormat(QtGui.QImage.Format_RGB888)
+        img_arr = utils.img_qt_to_arr(image)
         k = -1 if clockwise else 1
         img_arr = np.rot90(img_arr, k)
         self.imageData = utils.img_arr_to_data(img_arr)
