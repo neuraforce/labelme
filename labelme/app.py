@@ -417,7 +417,7 @@ class MainWindow(QtWidgets.QMainWindow):
         renameFile = action(
             self.tr("&Rename File"),
             self.renameFile,
-            shortcuts["rename_file"],
+            shortcuts.get("rename_file", "F2"),
             "edit",
             self.tr("Rename current label file and image"),
             enabled=True,
