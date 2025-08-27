@@ -63,8 +63,10 @@ def img_data_to_png_data(img_data):
 
 def img_qt_to_arr(img_qt):
     w, h, d = img_qt.size().width(), img_qt.size().height(), img_qt.depth()
-    bytes_ = img_qt.bits().asstring(w * h * d // 8)
-    img_arr = np.frombuffer(bytes_, dtype=np.uint8).reshape((h, w, d // 8))
+    bytes_per_line = img_qt.bytesPerLine()
+    bytes_ = img_qt.bits().asstring(bytes_per_line * h)
+    img_arr = np.frombuffer(bytes_, dtype=np.uint8).reshape((h, bytes_per_line))
+    img_arr = img_arr[:, : w * d // 8].reshape((h, w, d // 8))
     return img_arr
 
 
