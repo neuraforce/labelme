@@ -13,9 +13,10 @@ def test_rotate_image_preserves_color(tmp_path):
     # ensure headless operation
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-    # create a simple image with known color
-    image = QtGui.QImage(1, 1, QtGui.QImage.Format_ARGB32)
+    # create a simple image with known colors and non-4-byte-aligned width
+    image = QtGui.QImage(1, 2, QtGui.QImage.Format_ARGB32)
     image.setPixelColor(0, 0, QtGui.QColor(10, 20, 30, 255))
+    image.setPixelColor(0, 1, QtGui.QColor(40, 50, 60, 255))
 
     # stub MainWindow attributes needed for rotateImage
     dummy = types.SimpleNamespace(
@@ -38,4 +39,6 @@ def test_rotate_image_preserves_color(tmp_path):
     arr = labelme.utils.img_qt_to_arr(
         dummy.image.convertToFormat(QtGui.QImage.Format_RGB888)
     )
-    assert arr[0, 0, :3].tolist() == [10, 20, 30]
+    assert arr.shape == (1, 2, 3)
+    assert arr[0, 0, :3].tolist() == [40, 50, 60]
+    assert arr[0, 1, :3].tolist() == [10, 20, 30]
