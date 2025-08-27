@@ -414,6 +414,15 @@ class MainWindow(QtWidgets.QMainWindow):
             enabled=False,
         )
 
+        renameFile = action(
+            self.tr("&Rename File"),
+            self.renameFile,
+            shortcuts["rename_file"],
+            "edit",
+            self.tr("Rename current label file and image"),
+            enabled=True,
+        )
+
         deleteFile = action(
             self.tr("&Delete File"),
             self.deleteFile,
@@ -808,6 +817,7 @@ class MainWindow(QtWidgets.QMainWindow):
             saveAs=saveAs,
             open=open_,
             close=close,
+            renameFile=renameFile,
             deleteFile=deleteFile,
             detect=detect_action,
             toggleKeepPrevMode=toggle_keep_prev_mode,
@@ -930,6 +940,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 changeOutputDir,
                 saveWithImageData,
                 close,
+                renameFile,
                 deleteFile,
                 None,
                 quit,
@@ -1028,6 +1039,7 @@ class MainWindow(QtWidgets.QMainWindow):
             openPrevImg,
             openNextImg,
             save,
+            renameFile,
             deleteFile,
         ]
         if detect_action:
@@ -1208,6 +1220,7 @@ class MainWindow(QtWidgets.QMainWindow):
             title = "{} - {}".format(title, self.filename)
         self.setWindowTitle(title)
 
+        self.actions.renameFile.setEnabled(True)  # type: ignore[attr-defined]
         self.actions.deleteFile.setEnabled(True)  # type: ignore[attr-defined]
 
     def toggleActions(self, value=True):
@@ -2640,6 +2653,74 @@ class MainWindow(QtWidgets.QMainWindow):
         self.toggleActions(False)
         self.canvas.setEnabled(False)
         self.actions.saveAs.setEnabled(False)  # type: ignore[attr-defined]
+
+    def renameFile(self):
+        if not self.filename:
+            return
+        dirpath = osp.dirname(self.filename)
+        old_basename = osp.basename(self.filename)
+        new_basename, ok = QtWidgets.QInputDialog.getText(
+            self,
+            self.tr("Rename File"),
+            self.tr("Enter new filename:"),
+            text=old_basename,
+        )
+        if not ok or not new_basename or new_basename == old_basename:
+            return
+        if not osp.splitext(new_basename)[1]:
+            new_basename += osp.splitext(old_basename)[1]
+        new_path = osp.join(dirpath, new_basename)
+        if osp.exists(new_path):
+            QtWidgets.QMessageBox.warning(
+                self,
+                self.tr("Rename File"),
+                self.tr("File already exists: %s") % new_basename,
+            )
+            return
+        try:
+            os.rename(self.filename, new_path)
+        except Exception as err:
+            QtWidgets.QMessageBox.warning(
+                self,
+                self.tr("Rename File"),
+                self.tr("Failed to rename file: %s") % err,
+            )
+            return
+
+        stem_old = osp.splitext(old_basename)[0]
+        stem_new = osp.splitext(new_basename)[0]
+        label_dir = self.output_dir if self.output_dir else dirpath
+        for ext in [".json", ".txt", ".nfmeta"]:
+            old_file = osp.join(label_dir, stem_old + ext)
+            if osp.exists(old_file):
+                new_file = osp.join(label_dir, stem_new + ext)
+                try:
+                    os.rename(old_file, new_file)
+                except Exception as err:
+                    logger.error("Error renaming file", exc_info=err)
+                if ext == ".json":
+                    old_base = osp.basename(old_file)
+                    new_base = osp.basename(new_file)
+                    if old_base in self.modifiedLabelFiles:
+                        self.modifiedLabelFiles.remove(old_base)
+                        self.modifiedLabelFiles.add(new_base)
+
+        if self.filename in self.imageList:
+            row = self.imageList.index(self.filename)
+            item = self.fileListWidget.item(row)
+            item.setText(new_path)
+            label_file = osp.splitext(new_path)[0] + ".json"
+            if self.output_dir:
+                label_file = osp.join(self.output_dir, osp.basename(label_file))
+            if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file):
+                item.setCheckState(Qt.Checked)  # type: ignore[attr-defined]
+            else:
+                item.setCheckState(Qt.Unchecked)  # type: ignore[attr-defined]
+            self.fileListWidget.setCurrentRow(row)
+
+        self.filename = new_path
+        self.imagePath = new_path
+        self.loadFile(new_path)
 
     def getLabelFile(self):
         if self.filename.lower().endswith(".json"):

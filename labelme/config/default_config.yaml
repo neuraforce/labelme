@@ -106,6 +106,7 @@ shortcuts:
   save_as: Ctrl+Shift+S
   save_to: null
   delete_file: Ctrl+Delete
+  rename_file: F2
 
   open_next: [D, Ctrl+Shift+D]
   open_next_blank: [B, Ctrl+Shift+B]
